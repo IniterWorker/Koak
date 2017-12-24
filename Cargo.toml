@@ -1,0 +1,7 @@
+[package]
+name = "koak"
+version = "1.0.0"
+authors = ["Benjamin Grange <benjamin.grange@epitech.eu>"]
+
+[dependencies]
+ansi_term = "0.9"
