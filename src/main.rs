@@ -5,37 +5,47 @@
 #![feature(io)]
 
 extern crate ansi_term;
+extern crate rustyline;
 
 mod input;
 mod lexer;
 mod token;
 mod pos;
-mod error;
+mod syntaxerror;
+mod parser;
 
 fn main() {
     use lexer::Lexer;
-    use token::TokenType;
-    use error::SyntaxError;
-    use input::InputFeeder;
+    use parser::Parser;
+    use input::{LineInputFeeder, FileInputFeeder};
 
-    let filename = std::env::args().nth(1).unwrap_or(String::from("/dev/stdin"));
+    let feeder = match std::env::args().nth(1) {
+        Some(ref filename) => FileInputFeeder::from(filename),
+        _ => LineInputFeeder::new(),
+    };
 
-    match InputFeeder::from(&filename) {
+    match feeder {
         Ok(feeder) => {
             let mut lexer = Lexer::from(feeder);
-            while let Some(token) = lexer.next() {
-                match token.get_type() {
-                    TokenType::Error(what) => {
-                        SyntaxError::from(lexer.get_current_line(), token.get_start(), token.get_end(), what).print_error();
-                        std::process::exit(1);
-                    },
-                    _ => println!("{:?}", token),
+            let mut parser = Parser::new();
+
+            while {
+                lexer.reset();
+                match parser.parse(&mut lexer) {
+                    Ok(_) => (),
+                    Err(se) => {
+                        se.print_error();
+                        if !lexer.get_feeder().is_stdin() {
+                            std::process::exit(1);
+                        }
+                    }
                 }
-            }
+                lexer.get_feeder_mut().should_continue()
+            } {}
         },
-        Err(s) =>  {
+        Err((f, s)) =>  {
             use std::error::Error;
-            eprintln!("{}: {}", filename, s.description());
+            eprintln!("{}: {}", f, s.description());
         }
     }
 }

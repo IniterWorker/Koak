@@ -12,10 +12,9 @@ pub enum TokenType {
     Operator(char),
     Identifier(String),
     Number(f64),
-    Error(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     start: Pos,
     end: Pos,

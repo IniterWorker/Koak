@@ -5,31 +5,101 @@
 use std::fs::File;
 use std::io::{BufReader, BufRead, Lines};
 use std::io;
+use std::fmt::Debug;
+
+use rustyline::Editor;
+
+pub trait InputFeeder: Debug {
+    fn next_line(&mut self) -> Option<String>;
+    fn get_name(&self) -> String;
+    fn is_stdin(&self) -> bool;
+    fn should_continue(&mut self) -> bool;
+}
 
 #[derive(Debug)]
-pub struct InputFeeder {
+pub struct FileInputFeeder {
     path: String,
     lines: Lines<BufReader<File>>,
 }
 
-impl InputFeeder {
-    pub fn from(path: &String) -> Result<InputFeeder, io::Error> {
+impl FileInputFeeder {
+    pub fn from(path: &str) -> Result<Box<InputFeeder>, (String, io::Error)> {
         File::open(path).map(|file| {
-            InputFeeder {
-                path: path.clone(),
+            Box::new(FileInputFeeder {
+                path: String::from(path),
                 lines: BufReader::new(file).lines(),
-            }
-        })
+            }) as Box<InputFeeder>
+        }).map_err(|e| (String::from(path), e))
     }
 }
 
-impl Iterator for InputFeeder {
-    type Item = String;
+impl InputFeeder for FileInputFeeder {
+    fn get_name(&self) -> String {
+        self.path.clone()
+    }
 
-    fn next(&mut self) -> Option<String> {
+    fn next_line(&mut self) -> Option<String> {
         match self.lines.next() {
             Some(Ok(l)) => Some(l),
-            _ => None,
+            _ => {
+                None
+            },
         }
+    }
+
+    fn is_stdin(&self) -> bool {
+        false
+    }
+
+    fn should_continue(&mut self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug)]
+pub struct LineInputFeeder {
+    rl: Editor<()>,
+    fake_eof: bool,
+    eof: bool
+}
+
+impl LineInputFeeder {
+    pub fn new() -> Result<Box<InputFeeder>, (String, io::Error)> {
+        Ok(Box::new(LineInputFeeder {
+            rl: Editor::<()>::new(),
+            fake_eof: false,
+            eof: false,
+        }) as Box<InputFeeder>)
+    }
+}
+
+impl InputFeeder for LineInputFeeder {
+    fn get_name(&self) -> String {
+        String::from("stdin")
+    }
+
+    fn next_line(&mut self) -> Option<String> {
+        if !self.fake_eof {
+            self.fake_eof = true;
+            match self.rl.readline(">> ") {
+                Ok(line) => Some(line),
+                Err(_) => {
+                    self.eof = true;
+                    None
+                }
+            }
+        }
+        else {
+            None
+        }
+    }
+
+    fn is_stdin(&self) -> bool {
+        true
+    }
+
+    fn should_continue(&mut self) -> bool {
+        self.fake_eof = false;
+        !self.eof
     }
 }

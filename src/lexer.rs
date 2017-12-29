@@ -5,10 +5,12 @@
 use token::{Token, TokenType};
 use input::InputFeeder;
 use pos::Pos;
+use syntaxerror::{SyntaxError, ErrorReason};
 
 #[derive(Debug)]
 pub struct Lexer {
-    feeder: InputFeeder,
+    feeder: Box<InputFeeder>,
+    peeked: Option<Option<Result<Token, SyntaxError>>>,
     line: String,
     line_idx: usize,
     idx: usize,
@@ -17,9 +19,10 @@ pub struct Lexer {
 
 impl Lexer {
 
-    pub fn from(feeder: InputFeeder) -> Lexer {
+    pub fn from(feeder: Box<InputFeeder>) -> Lexer {
         Lexer {
             feeder: feeder,
+            peeked: None,
             line: String::new(),
             line_idx: 0,
             idx: 0,
@@ -28,7 +31,7 @@ impl Lexer {
     }
 
     fn next_line(&mut self) -> bool {
-        match self.feeder.next() {
+        match self.feeder.next_line() {
             Some(l) => {
                 self.line = l;
                 self.line_idx += 1;
@@ -66,37 +69,58 @@ impl Lexer {
         }
     }
 
-    fn lex_number(&mut self, c: char) -> Token {
+    fn lex_number(&mut self, c: char) -> Result<Token, SyntaxError> {
         let mut s = c.to_string();
 
-        loop {
-            match self.peek_char().unwrap_or('\0') {
-                '0'...'9' => s.push(self.next_char().unwrap()),
+        while let Some(c) = self.peek_char() {
+            match c {
+                '0'...'9' | '.' => {
+                    s.push(self.next_char().unwrap());
+                },
                 _ => break,
             }
         }
 
         match s.parse::<f64>().ok() {
-            Some(f) => Token::from(self, TokenType::Number(f)),
-            _ => Token::from(self, TokenType::Error(format!("Invalid litteral number \"{}\"", s))),
+            Some(f) => Ok(Token::from(self, TokenType::Number(f))),
+            _ => Err(SyntaxError::from_pos(self, ErrorReason::InvalidNum(s))),
         }
     }
 
-    fn lex_identifier(&mut self, c: char) -> Token {
+    fn lex_identifier(&mut self, c: char) -> Result<Token, SyntaxError> {
         let mut s = c.to_string();
 
-        loop {
-            match self.peek_char().unwrap_or('\0') {
-                '0'...'9' | 'a'...'z' | 'A'...'Z' => {
+        while let Some(c) = self.peek_char() {
+            match c {
+                '0'...'9' | 'a'...'z' | 'A'...'Z' | '_' => {
                     s.push(self.next_char().unwrap());
                 }
                 _ => break,
             }
         }
         match s.as_ref() {
-            "def" => Token::from(self, TokenType::Def),
-            "extern" => Token::from(self, TokenType::Extern),
-            _ => Token::from(self, TokenType::Identifier(s)),
+            "def" => Ok(Token::from(self, TokenType::Def)),
+            "extern" => Ok(Token::from(self, TokenType::Extern)),
+            _ => Ok(Token::from(self, TokenType::Identifier(s))),
+        }
+    }
+
+    fn next_token(&mut self) -> Option<Result<Token, SyntaxError>> {
+        match self.next_char() {
+            Some(c) => {
+                self.start_pos = self.get_current_pos();
+                match c {
+                    ' ' | '\r' | '\t' | '\n' => self.next_token(),
+                    'a'...'z' | 'A'...'Z' | '_' => Some(self.lex_identifier(c)),
+                    '0'...'9' | '.' => Some(self.lex_number(c)),
+                    '#' => { self.lex_comment(); self.next_token() },
+                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' | '(' | ')' | ',' => {
+                        Some(Ok(Token::from(self, TokenType::Operator(c))))
+                    },
+                    _ => Some(Err(SyntaxError::from_pos(self, ErrorReason::UnknownChar(c))))
+                }
+            },
+            _ => None,
         }
     }
 
@@ -111,27 +135,46 @@ impl Lexer {
     pub fn get_start_pos(&self) -> Pos {
         self.start_pos
     }
+
+    pub fn get_feeder(&self) -> &Box<InputFeeder> {
+        &self.feeder
+    }
+
+    pub fn get_feeder_mut(&mut self) -> &mut Box<InputFeeder> {
+        &mut self.feeder
+    }
+
+    pub fn reset(&mut self) {
+        self.peeked = None;
+        self.idx = self.line.len();
+    }
+
+    pub fn peek(&mut self) -> Option<Result<Token, SyntaxError>> {
+        if self.peeked.is_none() {
+            self.peeked = Some(self.next());
+        }
+        match self.peeked {
+            Some(Some(ref value)) => Some(value.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn peek_type(&mut self) -> Option<Result<TokenType, SyntaxError>> {
+        self.peek().map(|r| r.map(|t| t.get_type()))
+    }
+
+    pub fn next_or(&mut self, er: ErrorReason) -> Result<Token, SyntaxError> {
+        self.next().ok_or(SyntaxError::from_lexer(self, er))?
+    }
 }
 
 impl Iterator for Lexer {
-    type Item = Token;
+    type Item = Result<Token, SyntaxError>;
 
-    fn next(&mut self) -> Option<Token> {
-        match self.next_char() {
-            Some(c) => {
-                self.start_pos = self.get_current_pos();
-                match c {
-                    ' ' | '\r' | '\t' | '\n' => self.next(),
-                    'a'...'z' | 'A'...'Z' => Some(self.lex_identifier(c)),
-                    '0'...'9' => Some(self.lex_number(c)),
-                    '#' => { self.lex_comment(); self.next() },
-                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' | '(' | ')' => {
-                        Some(Token::from(self, TokenType::Operator(c)))
-                    },
-                    _ => Some(Token::from(self, TokenType::Error(format!("Unknown character \'{}\'", c)))),
-                }
-            },
-            _ => None,
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.peeked.take() {
+            Some(v) => v,
+            None => self.next_token(),
         }
     }
 }
