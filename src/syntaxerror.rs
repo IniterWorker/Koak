@@ -24,7 +24,6 @@ pub enum ErrorReason {
     ExprExpected,
     ExpectedFuncName,
     ExpectedOpenParenthesis,
-    ExpectedArgName,
     ArgMustBeIdentifier,
 }
 
@@ -67,18 +66,17 @@ impl SyntaxError {
             ErrorReason::ExprExpected => format!("An expression was expected"),
             ErrorReason::ExpectedFuncName => format!("Function name was expected in prototype"),
             ErrorReason::ExpectedOpenParenthesis => format!("Open parenthesis was expected in prototype"),
-            ErrorReason::ExpectedArgName => format!("Argument name expected"),
             ErrorReason::ArgMustBeIdentifier => format!("Function arguments must be identifiers seperated by spaces"),
         };
-        println!("{}:{}:{}: {}: {}", self.file_name, self.start.line, self.start.col, Red.bold().paint("Syntax Error"), reason);
-        println!("{}", self.line);
+        eprintln!("{}:{}:{}: {}: {}", self.file_name, self.start.line, self.start.col, Red.bold().paint("Syntax Error"), reason);
+        eprintln!("{}", self.line);
         for _ in 0..self.start.col - 1{
-            print!(" ");
+            eprint!(" ");
         }
         for _ in 0..self.end.col - self.start.col {
-            print!("{}", Green.bold().paint("~"));
+            eprint!("{}", Green.bold().paint("~"));
         }
-        println!("{}", Green.bold().paint("^"));
+        eprintln!("{}", Green.bold().paint("^"));
     }
 }
 

@@ -6,46 +6,38 @@
 
 extern crate ansi_term;
 extern crate rustyline;
+extern crate iron_llvm;
+extern crate llvm_sys;
 
+mod toolchain;
 mod input;
 mod lexer;
 mod token;
 mod pos;
 mod syntaxerror;
 mod parser;
+mod codegen;
 
 fn main() {
-    use lexer::Lexer;
-    use parser::Parser;
-    use input::{LineInputFeeder, FileInputFeeder};
+    use std::process::exit;
+    use toolchain::{KoakToolChain, StdinKoakToolChain, FileKoakToolChain};
 
-    let feeder = match std::env::args().nth(1) {
-        Some(ref filename) => FileInputFeeder::from(filename),
-        _ => LineInputFeeder::new(),
+    let mut toolchain: Box<KoakToolChain> = match std::env::args().nth(1) {
+        Some(ref filename) => match FileKoakToolChain::from(filename) {
+            Ok(fktc) => Box::new(fktc),
+            Err((filename, e)) => {
+                eprintln!("{}: {}", filename, e);
+                exit(1);
+            },
+        },
+        _ => match StdinKoakToolChain::new() {
+            Ok(fktc) => Box::new(fktc),
+            Err((filename, e)) => {
+                eprintln!("{}: {}", filename, e);
+                exit(1);
+            },
+        },
     };
 
-    match feeder {
-        Ok(feeder) => {
-            let mut lexer = Lexer::from(feeder);
-            let mut parser = Parser::new();
-
-            while {
-                lexer.reset();
-                match parser.parse(&mut lexer) {
-                    Ok(_) => (),
-                    Err(se) => {
-                        se.print_error();
-                        if !lexer.get_feeder().is_stdin() {
-                            std::process::exit(1);
-                        }
-                    }
-                }
-                lexer.get_feeder_mut().should_continue()
-            } {}
-        },
-        Err((f, s)) =>  {
-            use std::error::Error;
-            eprintln!("{}: {}", f, s.description());
-        }
-    }
+    toolchain.run();
 }

@@ -6,3 +6,7 @@ authors = ["Benjamin Grange <benjamin.grange@epitech.eu>"]
 [dependencies]
 ansi_term = "0.9"
 rustyline = "1.0.0"
+llvm-sys = "*"
+
+[dependencies.iron_llvm]
+git = "https://github.com/jauhien/iron-llvm.git"

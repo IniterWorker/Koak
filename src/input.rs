@@ -12,7 +12,6 @@ use rustyline::Editor;
 pub trait InputFeeder: Debug {
     fn next_line(&mut self) -> Option<String>;
     fn get_name(&self) -> String;
-    fn is_stdin(&self) -> bool;
     fn should_continue(&mut self) -> bool;
 }
 
@@ -45,10 +44,6 @@ impl InputFeeder for FileInputFeeder {
                 None
             },
         }
-    }
-
-    fn is_stdin(&self) -> bool {
-        false
     }
 
     fn should_continue(&mut self) -> bool {
@@ -92,10 +87,6 @@ impl InputFeeder for LineInputFeeder {
         else {
             None
         }
-    }
-
-    fn is_stdin(&self) -> bool {
-        true
     }
 
     fn should_continue(&mut self) -> bool {

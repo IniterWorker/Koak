@@ -8,24 +8,19 @@ use syntaxerror::{SyntaxError, ErrorReason};
 use token::TokenType;
 use lexer::Lexer;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ASTNode {
     Expr(Expr),
-    Proto(Proto),
-    Func(Func),
+    ExternProto(Proto),
+    Func(Proto, Expr),
 }
 
-#[derive(Debug)]
-pub enum Func {
-    Function(Proto, Expr),
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Proto {
     Prototype(String, Vec<String>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Number(f64),
     Variable(String),
@@ -35,12 +30,16 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub struct Parser {
+    lexer: Lexer,
+    peeked: Option<Option<Result<ASTNode, SyntaxError>>>,
     bin_ops: HashMap<char, i32>
 }
 
 impl Parser {
-    pub fn new() -> Parser {
+    pub fn new(lexer: Lexer) -> Parser {
         Parser {
+            lexer: lexer,
+            peeked: None,
             bin_ops: [
                          ('<', 10),
                          ('+', 20),
@@ -50,17 +49,17 @@ impl Parser {
         }
     }
 
-    fn parse_call_args(&mut self, lexer: &mut Lexer) -> Result<Vec<Expr>, SyntaxError> {
+    fn parse_call_args(&mut self) -> Result<Vec<Expr>, SyntaxError> {
         let mut v = Vec::new();
 
-        match lexer.peek_type() {
+        match self.lexer.peek_type() {
             Some(Ok(TokenType::Operator(')'))) => Ok(v),
             _ => {
                 loop {
-                    v.push(self.parse_expr(lexer)?);
-                    match lexer.peek_type() {
+                    v.push(self.parse_expr()?);
+                    match self.lexer.peek_type() {
                         Some(Ok(TokenType::Operator(','))) => {
-                            lexer.next(); // eat ','
+                            self.lexer.next(); // eat ','
                         },
                         _ => break,
                     }
@@ -70,22 +69,22 @@ impl Parser {
         }
     }
 
-    fn parse_bin_rhs(&mut self, lexer: &mut Lexer, i: i32, lhs: Expr) -> Result<Expr, SyntaxError> {
-        match lexer.peek_type() {
+    fn parse_bin_rhs(&mut self, i: i32, lhs: Expr) -> Result<Expr, SyntaxError> {
+        match self.lexer.peek_type() {
             Some(Ok(TokenType::Operator(c))) => {
                 let prec = *self.bin_ops.get(&c).unwrap_or(&-1);
                 if prec < i {
                     Ok(lhs)
                 } else {
-                    lexer.next(); // Eat operator
-                    let rhs = self.parse_primary(lexer)?;
+                    self.lexer.next(); // Eat operator
+                    let rhs = self.parse_primary()?;
 
                     let rhs = {
-                        match lexer.peek_type() {
+                        match self.lexer.peek_type() {
                             Some(Ok(TokenType::Operator(c2))) => {
                                 let prec_next = *self.bin_ops.get(&c2).unwrap_or(&-1);
                                 if prec < prec_next {
-                                    self.parse_bin_rhs(lexer, prec + 1, rhs)?
+                                    self.parse_bin_rhs(prec + 1, rhs)?
                                 } else {
                                     rhs
                                 }
@@ -94,89 +93,127 @@ impl Parser {
                         }
                     };
                     let lhs = Expr::Binary(c, Box::new(lhs), Box::new(rhs));
-                    self.parse_bin_rhs(lexer, i, lhs)
+                    self.parse_bin_rhs(i, lhs)
                 }
             },
             _ => Ok(lhs),
         }
     }
 
-    fn parse_primary(&mut self, lexer: &mut Lexer) -> Result<Expr, SyntaxError> {
-        let t = lexer.next_or(ErrorReason::ExprExpected)?;
+    fn parse_primary(&mut self) -> Result<Expr, SyntaxError> {
+        let t = self.lexer.next_or(ErrorReason::ExprExpected)?;
         match t.get_type() {
             TokenType::Number(n) => Ok(Expr::Number(n)),
             TokenType::Operator('(') => {
-                let e = self.parse_expr(lexer)?;
+                let e = self.parse_expr()?;
 
-                let t = lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
+                let t = self.lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
                 match t.get_type() {
                     TokenType::Operator(')') => Ok(e),
-                    _ => Err(SyntaxError::from(lexer, &t, ErrorReason::UnmatchedParenthesis)),
+                    _ => Err(SyntaxError::from(&self.lexer, &t, ErrorReason::UnmatchedParenthesis)),
                 }
             },
             TokenType::Identifier(s) => {
-                match lexer.peek_type() {
+                match self.lexer.peek_type() {
                     Some(Ok(TokenType::Operator('('))) => {
-                        lexer.next(); // Eat '('
-                        let args = self.parse_call_args(lexer)?;
-                        let t = lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
+                        self.lexer.next(); // Eat '('
+                        let args = self.parse_call_args()?;
+                        let t = self.lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
                         match t.get_type() {
                             TokenType::Operator(')') => Ok(Expr::Call(s, args)),
-                            _ => Err(SyntaxError::from(lexer, &t, ErrorReason::UnmatchedParenthesis)),
+                            _ => Err(SyntaxError::from(&self.lexer, &t, ErrorReason::UnmatchedParenthesis)),
                         }
                     },
                     _ => Ok(Expr::Variable(s)),
                 }
             },
-            _ => Err(SyntaxError::from(lexer, &t, ErrorReason::ExprExpected)),
+            _ => Err(SyntaxError::from(&self.lexer, &t, ErrorReason::ExprExpected)),
         }
     }
 
-    fn parse_expr(&mut self, lexer: &mut Lexer) -> Result<Expr, SyntaxError> {
-        let expr = self.parse_primary(lexer)?;
-        self.parse_bin_rhs(lexer, 0, expr)
+    fn parse_expr(&mut self) -> Result<Expr, SyntaxError> {
+        let expr = self.parse_primary()?;
+        self.parse_bin_rhs(0, expr)
     }
 
-    fn parse_prototype(&mut self, lexer: &mut Lexer) -> Result<Proto, SyntaxError> {
-        let t = lexer.next_or(ErrorReason::ExpectedFuncName)?;
+    fn parse_prototype(&mut self) -> Result<Proto, SyntaxError> {
+        let t = self.lexer.next_or(ErrorReason::ExpectedFuncName)?;
         if let TokenType::Identifier(s) = t.get_type() {
-            let t2 = lexer.next_or(ErrorReason::ExpectedOpenParenthesis)?;
+            let t2 = self.lexer.next_or(ErrorReason::ExpectedOpenParenthesis)?;
             match t2.get_type() {
                 TokenType::Operator('(') => {
                     let mut args = Vec::new();
                     // Parse args
-                    while let Some(Ok(TokenType::Identifier(s))) = lexer.peek_type() {
-                        lexer.next();
+                    while let Some(Ok(TokenType::Identifier(s))) = self.lexer.peek_type() {
+                        self.lexer.next();
                         args.push(s);
                     }
 
-                    let t3 = lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
+                    let t3 = self.lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
                     match t3.get_type() {
                         TokenType::Operator(')') => {
                             Ok(Proto::Prototype(s, args))
                         },
-                        _ => Err(SyntaxError::from(lexer, &t3, ErrorReason::ArgMustBeIdentifier))
+                        _ => Err(SyntaxError::from(&self.lexer, &t3, ErrorReason::ArgMustBeIdentifier))
                     }
                 },
-                _ => Err(SyntaxError::from(lexer, &t2, ErrorReason::ExpectedOpenParenthesis))
+                _ => Err(SyntaxError::from(&self.lexer, &t2, ErrorReason::ExpectedOpenParenthesis))
             }
         } else {
-            Err(SyntaxError::from(lexer, &t, ErrorReason::ExpectedFuncName))
+            Err(SyntaxError::from(&self.lexer, &t, ErrorReason::ExpectedFuncName))
         }
     }
 
-    pub fn parse(&mut self, lexer: &mut Lexer) -> Result<(), SyntaxError> {
-        while let Some(r) = lexer.peek_type() {
-            let r = r?;
-            let node = match r {
-                TokenType::Def => {
-                    lexer.next(); // Eat 'def'
-                    ASTNode::Proto(self.parse_prototype(lexer)?)
-                },
-                _ => ASTNode::Expr(self.parse_expr(lexer)?),
-            };
-            println!("Node: {:?}", node);
+    pub fn parse_function(&mut self) -> Result<ASTNode, SyntaxError> {
+        self.lexer.next(); // Eat def
+        let proto = self.parse_prototype()?;
+        let content = self.parse_expr()?;
+        Ok(ASTNode::Func(proto, content))
+    }
+
+    pub fn parse_extern_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
+        self.lexer.next(); // Eat extern
+        Ok(ASTNode::ExternProto(self.parse_prototype()?))
+    }
+
+    #[allow(dead_code)]
+    pub fn get_lexer(&self) -> &Lexer {
+        &self.lexer
+    }
+
+    #[allow(dead_code)]
+    pub fn get_lexer_mut(&mut self) -> &mut Lexer {
+        &mut self.lexer
+    }
+
+    pub fn peek(&mut self) -> Option<Result<ASTNode, SyntaxError>> {
+        if self.peeked.is_none() {
+            self.peeked = Some(self.next());
         }
-        Ok(())
+        match self.peeked {
+            Some(Some(ref value)) => Some(value.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn next_node(&mut self) -> Result<ASTNode, SyntaxError> {
+        let r = self.lexer.peek_type().unwrap()?;
+        let node = match r {
+                TokenType::Def => self.parse_function()?,
+                TokenType::Extern => self.parse_extern_declaration()?,
+                _ => ASTNode::Expr(self.parse_expr()?),
+        };
+        Ok(node)
+    }
+}
+
+impl Iterator for Parser {
+    type Item = Result<ASTNode, SyntaxError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.peeked.take() {
+            Some(v) => v,
+            None => self.lexer.peek_type().and_then(|_| Some(self.next_node())),
+        }
     }
 }
