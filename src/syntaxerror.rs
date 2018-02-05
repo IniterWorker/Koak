@@ -4,17 +4,8 @@
 
 use ansi_term::Colour::*;
 use pos::Pos;
-use token::Token;
-use lexer::Lexer;
 
-#[derive(Debug, Clone)]
-pub struct SyntaxError {
-    line: String,
-    start: Pos,
-    end: Pos,
-    what: ErrorReason,
-    file_name: String,
-}
+use lexer::Token;
 
 #[derive(Debug, Clone)]
 pub enum ErrorReason {
@@ -27,34 +18,33 @@ pub enum ErrorReason {
     ArgMustBeIdentifier,
 }
 
+#[derive(Debug, Clone)]
+pub struct SyntaxError {
+    line: String,
+    file_name: String,
+    start: Pos,
+    end: Pos,
+    what: ErrorReason,
+}
+
 impl SyntaxError {
-    pub fn from(lexer: &Lexer, token: &Token, what: ErrorReason) -> SyntaxError {
+    pub fn from(file_name: &str, line: &str, start: Pos, end: Pos, what: ErrorReason) -> SyntaxError {
         SyntaxError {
-            line: lexer.get_current_line().clone(),
-            start: token.get_start(),
-            end: token.get_end(),
+            line: line.to_string(),
+            start: start,
+            end: end,
             what: what,
-            file_name: lexer.get_feeder().get_name(),
+            file_name: file_name.to_string(),
         }
     }
 
-    pub fn from_pos(lexer: &Lexer, what: ErrorReason) -> SyntaxError {
+    pub fn from_token(file_name: &str, token: &Token, what: ErrorReason) -> SyntaxError {
         SyntaxError {
-            line: lexer.get_current_line().clone(),
-            start: lexer.get_start_pos(),
-            end: lexer.get_current_pos(),
+            line: token.line.clone(),
+            start: token.start,
+            end: token.end,
             what: what,
-            file_name: lexer.get_feeder().get_name(),
-        }
-    }
-
-    pub fn from_lexer(lexer: &Lexer, what: ErrorReason) -> SyntaxError {
-        SyntaxError {
-            line: lexer.get_current_line().clone(),
-            start: lexer.get_current_pos(),
-            end: lexer.get_current_pos(),
-            what: what,
-            file_name: lexer.get_feeder().get_name(),
+            file_name: file_name.to_string(),
         }
     }
 
@@ -64,8 +54,8 @@ impl SyntaxError {
             ErrorReason::InvalidNum(ref s) => format!("Invalid litteral number \"{}\"", Purple.bold().paint(format!("{}", s))),
             ErrorReason::UnmatchedParenthesis => format!("Unmatched parenthesis"),
             ErrorReason::ExprExpected => format!("An expression was expected"),
-            ErrorReason::ExpectedFuncName => format!("Function name was expected in prototype"),
-            ErrorReason::ExpectedOpenParenthesis => format!("Open parenthesis was expected in prototype"),
+            ErrorReason::ExpectedFuncName => format!("Function name was expected in a prototype"),
+            ErrorReason::ExpectedOpenParenthesis => format!("Open parenthesis was expected after function name in a prototype"),
             ErrorReason::ArgMustBeIdentifier => format!("Function arguments must be identifiers seperated by spaces"),
         };
         eprintln!("{}:{}:{}: {}: {}", self.file_name, self.start.line, self.start.col, Red.bold().paint("Syntax Error"), reason);

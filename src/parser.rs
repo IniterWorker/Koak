@@ -3,10 +3,11 @@
 //!
 
 use std::collections::HashMap;
+use std::iter::Peekable;
+use std::slice::Iter;
 
 use syntaxerror::{SyntaxError, ErrorReason};
-use token::TokenType;
-use lexer::Lexer;
+use lexer::{Token, TokenType};
 
 #[derive(Debug, Clone)]
 pub enum ASTNode {
@@ -28,38 +29,56 @@ pub enum Expr {
     Call(String, Vec<Expr>),
 }
 
-#[derive(Debug)]
-pub struct Parser {
-    lexer: Lexer,
-    peeked: Option<Option<Result<ASTNode, SyntaxError>>>,
-    bin_ops: HashMap<char, i32>
+pub struct Parser<'a> {
+    tokens: Peekable<Iter<'a, Token>>,
+    last_token: Token,
+    bin_ops: HashMap<char, i32>,
+    file_name: String,
 }
 
-impl Parser {
-    pub fn new(lexer: Lexer) -> Parser {
+impl<'a> Parser<'a> {
+    pub fn from(tokens: Peekable<Iter<'a, Token>>, vec: &Vec<Token>, file_name: &str) -> Parser<'a> {
+        let last_token = vec.last().map(|x| x.clone()).unwrap_or(Token::new());
         Parser {
-            lexer: lexer,
-            peeked: None,
+            tokens: tokens,
+            last_token: last_token,
             bin_ops: [
                          ('<', 10),
                          ('+', 20),
                          ('-', 20),
                          ('*', 40),
             ].iter().cloned().collect(),
+            file_name: file_name.to_string(),
         }
     }
+
+    #[inline]
+    fn peek_type(&mut self) -> Option<TokenType> {
+        self.tokens.peek().map(|x| x.token_type.clone())
+    }
+
+    #[inline]
+    fn next_or(&mut self, er: ErrorReason) -> Result<Token, SyntaxError> {
+        self.tokens.next().ok_or(SyntaxError::from_token(&self.file_name, &self.last_token, er)).map(|x| x.clone())
+    }
+
+    #[inline]
+    fn peek_or(&mut self, er: ErrorReason) -> Result<Token, SyntaxError> {
+        self.tokens.peek().ok_or(SyntaxError::from_token(&self.file_name, &self.last_token, er)).map(|x| (*x).clone())
+    }
+
 
     fn parse_call_args(&mut self) -> Result<Vec<Expr>, SyntaxError> {
         let mut v = Vec::new();
 
-        match self.lexer.peek_type() {
-            Some(Ok(TokenType::Operator(')'))) => Ok(v),
+        match self.peek_type() {
+            Some(TokenType::Operator(')')) => Ok(v),
             _ => {
                 loop {
                     v.push(self.parse_expr()?);
-                    match self.lexer.peek_type() {
-                        Some(Ok(TokenType::Operator(','))) => {
-                            self.lexer.next(); // eat ','
+                    match self.peek_type() {
+                        Some(TokenType::Operator(',')) => {
+                            self.tokens.next(); // eat ','
                         },
                         _ => break,
                     }
@@ -70,18 +89,19 @@ impl Parser {
     }
 
     fn parse_bin_rhs(&mut self, i: i32, lhs: Expr) -> Result<Expr, SyntaxError> {
-        match self.lexer.peek_type() {
-            Some(Ok(TokenType::Operator(c))) => {
+        match self.peek_type() {
+            Some(TokenType::Operator(c)) => {
                 let prec = *self.bin_ops.get(&c).unwrap_or(&-1);
                 if prec < i {
                     Ok(lhs)
                 } else {
-                    self.lexer.next(); // Eat operator
+                    self.tokens.next(); // Eat operator
+                    self.peek_or(ErrorReason::ExprExpected)?;
                     let rhs = self.parse_primary()?;
 
                     let rhs = {
-                        match self.lexer.peek_type() {
-                            Some(Ok(TokenType::Operator(c2))) => {
+                        match self.peek_type() {
+                            Some(TokenType::Operator(c2)) => {
                                 let prec_next = *self.bin_ops.get(&c2).unwrap_or(&-1);
                                 if prec < prec_next {
                                     self.parse_bin_rhs(prec + 1, rhs)?
@@ -101,33 +121,33 @@ impl Parser {
     }
 
     fn parse_primary(&mut self) -> Result<Expr, SyntaxError> {
-        let t = self.lexer.next_or(ErrorReason::ExprExpected)?;
-        match t.get_type() {
+        let t = self.next_or(ErrorReason::ExprExpected)?;
+        match t.token_type {
             TokenType::Number(n) => Ok(Expr::Number(n)),
             TokenType::Operator('(') => {
                 let e = self.parse_expr()?;
 
-                let t = self.lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
-                match t.get_type() {
+                let t = self.next_or(ErrorReason::UnmatchedParenthesis)?;
+                match t.token_type {
                     TokenType::Operator(')') => Ok(e),
-                    _ => Err(SyntaxError::from(&self.lexer, &t, ErrorReason::UnmatchedParenthesis)),
+                    _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::UnmatchedParenthesis)),
                 }
             },
             TokenType::Identifier(s) => {
-                match self.lexer.peek_type() {
-                    Some(Ok(TokenType::Operator('('))) => {
-                        self.lexer.next(); // Eat '('
+                match self.peek_type() {
+                    Some(TokenType::Operator('(')) => {
+                        self.tokens.next(); // Eat '('
                         let args = self.parse_call_args()?;
-                        let t = self.lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
-                        match t.get_type() {
+                        let t = self.next_or(ErrorReason::UnmatchedParenthesis)?;
+                        match t.token_type {
                             TokenType::Operator(')') => Ok(Expr::Call(s, args)),
-                            _ => Err(SyntaxError::from(&self.lexer, &t, ErrorReason::UnmatchedParenthesis)),
+                            _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::UnmatchedParenthesis)),
                         }
                     },
                     _ => Ok(Expr::Variable(s)),
                 }
             },
-            _ => Err(SyntaxError::from(&self.lexer, &t, ErrorReason::ExprExpected)),
+            _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::ExprExpected)),
         }
     }
 
@@ -137,83 +157,61 @@ impl Parser {
     }
 
     fn parse_prototype(&mut self) -> Result<Proto, SyntaxError> {
-        let t = self.lexer.next_or(ErrorReason::ExpectedFuncName)?;
-        if let TokenType::Identifier(s) = t.get_type() {
-            let t2 = self.lexer.next_or(ErrorReason::ExpectedOpenParenthesis)?;
-            match t2.get_type() {
+        let t = self.next_or(ErrorReason::ExpectedFuncName)?;
+        if let TokenType::Identifier(s) = t.token_type {
+            let t2 = self.next_or(ErrorReason::ExpectedOpenParenthesis)?;
+            match t2.token_type {
                 TokenType::Operator('(') => {
-                    let mut args = Vec::new();
+
                     // Parse args
-                    while let Some(Ok(TokenType::Identifier(s))) = self.lexer.peek_type() {
-                        self.lexer.next();
+                    let mut args = Vec::new();
+                    while let Some(TokenType::Identifier(s)) = self.peek_type() {
+                        self.tokens.next();
                         args.push(s);
                     }
 
-                    let t3 = self.lexer.next_or(ErrorReason::UnmatchedParenthesis)?;
-                    match t3.get_type() {
+                    let t3 = self.next_or(ErrorReason::UnmatchedParenthesis)?;
+                    match t3.token_type {
                         TokenType::Operator(')') => {
                             Ok(Proto::Prototype(s, args))
                         },
-                        _ => Err(SyntaxError::from(&self.lexer, &t3, ErrorReason::ArgMustBeIdentifier))
+                        _ => Err(SyntaxError::from_token(&self.file_name, &t3, ErrorReason::ArgMustBeIdentifier))
                     }
                 },
-                _ => Err(SyntaxError::from(&self.lexer, &t2, ErrorReason::ExpectedOpenParenthesis))
+                _ => Err(SyntaxError::from_token(&self.file_name, &t2, ErrorReason::ExpectedOpenParenthesis))
             }
         } else {
-            Err(SyntaxError::from(&self.lexer, &t, ErrorReason::ExpectedFuncName))
+            Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::ExpectedFuncName))
         }
     }
 
-    pub fn parse_function(&mut self) -> Result<ASTNode, SyntaxError> {
-        self.lexer.next(); // Eat def
+    fn parse_function_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
+        self.tokens.next(); // Eat def
         let proto = self.parse_prototype()?;
         let content = self.parse_expr()?;
         Ok(ASTNode::Func(proto, content))
     }
 
-    pub fn parse_extern_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
-        self.lexer.next(); // Eat extern
+    fn parse_extern_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
+        self.tokens.next(); // Eat extern
         Ok(ASTNode::ExternProto(self.parse_prototype()?))
     }
 
-    #[allow(dead_code)]
-    pub fn get_lexer(&self) -> &Lexer {
-        &self.lexer
-    }
-
-    #[allow(dead_code)]
-    pub fn get_lexer_mut(&mut self) -> &mut Lexer {
-        &mut self.lexer
-    }
-
-    pub fn peek(&mut self) -> Option<Result<ASTNode, SyntaxError>> {
-        if self.peeked.is_none() {
-            self.peeked = Some(self.next());
-        }
-        match self.peeked {
-            Some(Some(ref value)) => Some(value.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn next_node(&mut self) -> Result<ASTNode, SyntaxError> {
-        let r = self.lexer.peek_type().unwrap()?;
-        let node = match r {
-                TokenType::Def => self.parse_function()?,
-                TokenType::Extern => self.parse_extern_declaration()?,
-                _ => ASTNode::Expr(self.parse_expr()?),
-        };
-        Ok(node)
+    fn parse_expr_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
+        let expr = self.parse_expr()?;
+        Ok(ASTNode::Expr(expr))
     }
 }
 
-impl Iterator for Parser {
+impl<'a> Iterator for Parser<'a> {
     type Item = Result<ASTNode, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.peeked.take() {
-            Some(v) => v,
-            None => self.lexer.peek_type().and_then(|_| Some(self.next_node())),
+        let r = self.peek_type()?;
+        match r {
+            TokenType::Def => Some(self.parse_function_declaration()),
+            TokenType::Extern => Some(self.parse_extern_declaration()),
+            _ => Some(self.parse_expr_declaration())
         }
     }
 }

@@ -16,6 +16,7 @@ pub struct CodeGen {
 }
 
 impl CodeGen {
+    #[inline]
     pub fn new() -> CodeGen {
         CodeGen {
             context: core::Context::get_global(),
