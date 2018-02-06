@@ -13,20 +13,20 @@ use lexer::{Token, TokenType};
 pub enum ASTNode {
     Expr(Expr),
     ExternProto(Proto),
-    Func(Proto, Expr),
+    Func(Proto, Expr), // Prototype, Content
 }
 
 #[derive(Debug, Clone)]
 pub enum Proto {
-    Prototype(String, Vec<String>),
+    Prototype(String, Vec<String>), // Name, args
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Number(f64),
     Variable(String),
-    Binary(char, Box<Expr>, Box<Expr>),
-    Call(String, Vec<Expr>),
+    Binary(char, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
+    Call(String, Vec<Expr>), // Name, args
 }
 
 pub struct Parser<'a> {

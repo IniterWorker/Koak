@@ -8,3 +8,7 @@ Cargo.lock
 
 test*
 *.vim
+
+*.ks
+
+docker.sh

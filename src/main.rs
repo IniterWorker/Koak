@@ -15,7 +15,7 @@ mod lexer;
 mod pos;
 mod syntaxerror;
 mod parser;
-//mod codegen;
+mod codegen;
 
 fn main() {
     use std::process::exit;

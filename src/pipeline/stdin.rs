@@ -4,6 +4,7 @@
 
 use lexer::Lexer;
 use parser::Parser;
+use codegen::{Context, SimpleModuleProvider};
 use input::{InputFeeder, StdinInput, StdinInputIterator};
 use super::KoakPipeLine;
 
@@ -62,8 +63,11 @@ impl KoakPipeLine for StdinKoakPipeLine {
                 continue
             }
 
+            let mut context = Context::new();
+            let mut module_provider = SimpleModuleProvider::from("main");
             for node in nodes {
-                println!("{:?}", node);
+                use codegen::IRBuilder;
+                println!("{:?}", node.gen_ir(&mut context, &mut module_provider));
             }
         }
     }
