@@ -12,17 +12,18 @@ use lexer::{Token, TokenType};
 #[derive(Debug, Clone)]
 pub enum ASTNode {
     Expr(Expr),
-    ExternProto(Proto),
-    Func(Proto, Expr), // Prototype, Content
+    ExternProto(Prototype),
+    Func(Prototype, Expr), // Prototype, Content
 }
 
 #[derive(Debug, Clone)]
-pub enum Proto {
-    Prototype(String, Vec<String>), // Name, args
-}
+pub struct Prototype(pub (Token, String), pub Vec<(Token, String)>); // Name and args
 
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub struct Expr(pub Token, pub ExprType);
+
+#[derive(Debug, Clone)]
+pub enum ExprType {
     Number(f64),
     Variable(String),
     Binary(char, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
@@ -44,9 +45,12 @@ impl<'a> Parser<'a> {
             last_token: last_token,
             bin_ops: [
                          ('<', 10),
+                         ('>', 10),
                          ('+', 20),
                          ('-', 20),
                          ('*', 40),
+                         ('/', 40),
+                         ('%', 40),
             ].iter().cloned().collect(),
             file_name: file_name.to_string(),
         }
@@ -95,7 +99,7 @@ impl<'a> Parser<'a> {
                 if prec < i {
                     Ok(lhs)
                 } else {
-                    self.tokens.next(); // Eat operator
+                    let op = self.tokens.next().unwrap(); // Eat operator
                     self.peek_or(ErrorReason::ExprExpected)?;
                     let rhs = self.parse_primary()?;
 
@@ -112,7 +116,7 @@ impl<'a> Parser<'a> {
                             _ => rhs,
                         }
                     };
-                    let lhs = Expr::Binary(c, Box::new(lhs), Box::new(rhs));
+                    let lhs = Expr(op.clone(), ExprType::Binary(c, Box::new(lhs), Box::new(rhs)));
                     self.parse_bin_rhs(i, lhs)
                 }
             },
@@ -123,7 +127,7 @@ impl<'a> Parser<'a> {
     fn parse_primary(&mut self) -> Result<Expr, SyntaxError> {
         let t = self.next_or(ErrorReason::ExprExpected)?;
         match t.token_type {
-            TokenType::Number(n) => Ok(Expr::Number(n)),
+            TokenType::Number(n) => Ok(Expr(t.clone(), ExprType::Number(n))),
             TokenType::Operator('(') => {
                 let e = self.parse_expr()?;
 
@@ -133,18 +137,18 @@ impl<'a> Parser<'a> {
                     _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::UnmatchedParenthesis)),
                 }
             },
-            TokenType::Identifier(s) => {
+            TokenType::Identifier(ref s) => {
                 match self.peek_type() {
                     Some(TokenType::Operator('(')) => {
                         self.tokens.next(); // Eat '('
                         let args = self.parse_call_args()?;
                         let t = self.next_or(ErrorReason::UnmatchedParenthesis)?;
                         match t.token_type {
-                            TokenType::Operator(')') => Ok(Expr::Call(s, args)),
+                            TokenType::Operator(')') => Ok(Expr(t.clone(), ExprType::Call(s.to_string(), args))),
                             _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::UnmatchedParenthesis)),
                         }
                     },
-                    _ => Ok(Expr::Variable(s)),
+                    _ => Ok(Expr(t.clone(), ExprType::Variable(s.to_string()))),
                 }
             },
             _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::ExprExpected)),
@@ -156,9 +160,9 @@ impl<'a> Parser<'a> {
         self.parse_bin_rhs(0, expr)
     }
 
-    fn parse_prototype(&mut self) -> Result<Proto, SyntaxError> {
+    fn parse_prototype(&mut self) -> Result<Prototype, SyntaxError> {
         let t = self.next_or(ErrorReason::ExpectedFuncName)?;
-        if let TokenType::Identifier(s) = t.token_type {
+        if let TokenType::Identifier(ref s) = t.token_type {
             let t2 = self.next_or(ErrorReason::ExpectedOpenParenthesis)?;
             match t2.token_type {
                 TokenType::Operator('(') => {
@@ -166,14 +170,14 @@ impl<'a> Parser<'a> {
                     // Parse args
                     let mut args = Vec::new();
                     while let Some(TokenType::Identifier(s)) = self.peek_type() {
-                        self.tokens.next();
-                        args.push(s);
+                        let t = self.tokens.next().unwrap();
+                        args.push((t.clone(), s));
                     }
 
                     let t3 = self.next_or(ErrorReason::UnmatchedParenthesis)?;
                     match t3.token_type {
                         TokenType::Operator(')') => {
-                            Ok(Proto::Prototype(s, args))
+                            Ok(Prototype((t.clone(), s.to_string()), args))
                         },
                         _ => Err(SyntaxError::from_token(&self.file_name, &t3, ErrorReason::ArgMustBeIdentifier))
                     }

@@ -16,6 +16,11 @@ pub enum ErrorReason {
     ExpectedFuncName,
     ExpectedOpenParenthesis,
     ArgMustBeIdentifier,
+    UndefinedVariable(String),
+    UndefinedFunction(String),
+    WrongArgNumber(String, usize, usize),
+    RedefinedFunc(String),
+    RedefinedFuncWithDiffArgs(String),
 }
 
 #[derive(Debug, Clone)]
@@ -50,13 +55,19 @@ impl SyntaxError {
 
     pub fn print_error(&self) {
         let reason = match self.what {
-            ErrorReason::UnknownChar(c) => format!("Unknown char \'{}\'", Purple.bold().paint(format!("{}", c))),
-            ErrorReason::InvalidNum(ref s) => format!("Invalid litteral number \"{}\"", Purple.bold().paint(format!("{}", s))),
+            ErrorReason::UnknownChar(ref c) => format!("Unknown char \'{}\'", Purple.bold().paint(format!("{}", c))),
+            ErrorReason::InvalidNum(ref s) => format!("Invalid litteral number \"{}\"", Purple.bold().paint(s.to_string())),
             ErrorReason::UnmatchedParenthesis => format!("Unmatched parenthesis"),
             ErrorReason::ExprExpected => format!("An expression was expected"),
             ErrorReason::ExpectedFuncName => format!("Function name was expected in a prototype"),
             ErrorReason::ExpectedOpenParenthesis => format!("Open parenthesis was expected after function name in a prototype"),
             ErrorReason::ArgMustBeIdentifier => format!("Function arguments must be identifiers seperated by spaces"),
+            ErrorReason::UndefinedVariable(ref s) => format!("Undefined variable \"{}\"", Purple.bold().paint(s.to_string())),
+            ErrorReason::UndefinedFunction(ref s) => format!("Undefined function \"{}\"", Purple.bold().paint(s.to_string())),
+            ErrorReason::WrongArgNumber(ref name, expected, given) =>
+                format!("Wrong number of argument: The function \"{}\" expects {} argument(s), but {} are given.", Purple.bold().paint(name.to_string()), expected, given),
+            ErrorReason::RedefinedFunc(ref name) => format!("Redefinition of function \"{}\".", Purple.bold().paint(name.to_string())),
+            ErrorReason::RedefinedFuncWithDiffArgs(ref func) => format!("Redefined function \"{}\" with a different number of args.", Purple.bold().paint(func.to_string())),
         };
         eprintln!("{}:{}:{}: {}: {}", self.file_name, self.start.line, self.start.col, Red.bold().paint("Syntax Error"), reason);
         eprintln!("{}", self.line);

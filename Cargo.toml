@@ -9,4 +9,5 @@ rustyline = "1.0.0"
 llvm-sys = "0.2.1"
 
 [dependencies.iron_llvm]
-git = "https://github.com/jauhien/iron-llvm"
+path = "iron-llvm/"
+#git = "https://github.com/Arignir/iron-llvm"

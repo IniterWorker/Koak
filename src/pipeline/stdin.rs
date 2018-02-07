@@ -23,6 +23,10 @@ impl StdinKoakPipeLine {
 impl KoakPipeLine for StdinKoakPipeLine {
 
     fn run(&mut self) {
+        use iron_llvm::core::Value;
+
+        let mut context = Context::new(self.stdin.get_name());
+        let mut module_provider = SimpleModuleProvider::from("main");
         loop {
             if self.stdin.prompt() {
                 break;
@@ -30,6 +34,7 @@ impl KoakPipeLine for StdinKoakPipeLine {
             let mut errors = Vec::new();
             let mut tokens = Vec::new();
             let mut nodes = Vec::new();
+            let mut ir = Vec::new();
             {
                 let line = self.stdin.get_line().to_string();
                 let it = StdinInputIterator::from(&line, self.stdin.get_row());
@@ -56,6 +61,14 @@ impl KoakPipeLine for StdinKoakPipeLine {
                 }
             }
 
+            for node in nodes {
+                use codegen::IRBuilder;
+                match node.gen_ir(&mut context, &mut module_provider) {
+                    Ok(i) => ir.push(i),
+                    Err(se) => errors.push(se),
+                }
+            }
+
             if errors.len() != 0 {
                 for se in errors {
                     se.print_error();
@@ -63,11 +76,8 @@ impl KoakPipeLine for StdinKoakPipeLine {
                 continue
             }
 
-            let mut context = Context::new();
-            let mut module_provider = SimpleModuleProvider::from("main");
-            for node in nodes {
-                use codegen::IRBuilder;
-                println!("{:?}", node.gen_ir(&mut context, &mut module_provider));
+            for i in ir {
+                i.dump();
             }
         }
     }
