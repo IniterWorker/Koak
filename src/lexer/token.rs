@@ -1,45 +1,57 @@
 //!
-//! A Token. The lexer's output.
+//! Tokens created by the Lexer and used by the parser.
 //!
 
-use pos::Pos;
+use std::rc::Rc;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum TokenType {
-    Unknown,
     Def,
     Extern,
     Operator(char),
-    Identifier(String),
+    Identifier(Rc<String>),
     Number(f64),
+
+    Unknown,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Token {
-    pub line: String,
-    pub start: Pos,
-    pub end: Pos,
     pub token_type: TokenType,
+    pub line: Rc<String>,
+    pub row: usize,
+    pub col: (usize, usize),
 }
 
 impl Token {
-    #[inline]
     pub fn new() -> Token {
         Token {
-            line: String::from(""),
-            start: Pos::new(0, 0),
-            end: Pos::new(0, 0),
             token_type: TokenType::Unknown,
+            line: Rc::new(String::new()),
+            row: 0,
+            col: (0, 0),
         }
     }
 
-    #[inline]
-    pub fn from(line: &str, start: Pos, end: Pos, t: TokenType) -> Token {
+    pub fn from(tt: TokenType, line: Rc<String>, row: usize, col: (usize, usize)) -> Token {
         Token {
-            line: line.to_string(),
-            start: start,
-            end: end,
-            token_type: t,
+            token_type: tt,
+            line: line,
+            row: row,
+            col: col,
         }
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{:?}", self.token_type)
+    }
+}
+
+impl fmt::Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{:?}", self.token_type)
     }
 }

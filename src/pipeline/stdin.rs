@@ -1,85 +1,81 @@
 //!
-//! Standard Input Koak's Toolchain
+//! Koak's stdin pipeline.
 //!
 
+use args::Args;
 use lexer::Lexer;
 use parser::Parser;
-use codegen::{Context, SimpleModuleProvider};
-use input::{InputFeeder, StdinInput, StdinInputIterator};
-use super::KoakPipeLine;
+use error::print_errors;
+use input::{SourceInput, StdinSourceInput};
+use codegen::{SimpleModuleProvider, IRModuleProvider, IRContext, IRGenerator};
 
-pub struct StdinKoakPipeLine {
-    stdin: StdinInput,
+use iron_llvm::core::Value;
+
+use super::print_vec;
+
+pub struct StdinPipeline<'a> {
+    input: StdinSourceInput,
+    args: &'a Args,
 }
 
-impl StdinKoakPipeLine {
-    pub fn new() -> StdinKoakPipeLine {
-        StdinKoakPipeLine {
-            stdin: StdinInput::new(),
+impl<'a> StdinPipeline<'a> {
+    #[inline]
+    pub fn new(args: &'a Args) -> StdinPipeline {
+        StdinPipeline {
+            input: StdinSourceInput::new(),
+            args: args,
         }
     }
-}
 
-impl KoakPipeLine for StdinKoakPipeLine {
+    ///
+    /// Runs the Koak's whole pipeline.
+    ///
+    pub fn run(&mut self) {
+        let mut context = IRContext::new();
+        let mut module_provider = SimpleModuleProvider::from(self.input.get_name(), self.args.optimization);
 
-    fn run(&mut self) {
-        use iron_llvm::core::Value;
-
-        let mut context = Context::new(self.stdin.get_name());
-        let mut module_provider = SimpleModuleProvider::from("main");
-        loop {
-            if self.stdin.prompt() {
-                break;
-            }
+        // Iterate on stdin
+        for (row, line) in (&mut self.input).enumerate() {
             let mut errors = Vec::new();
             let mut tokens = Vec::new();
-            let mut nodes = Vec::new();
-            let mut ir = Vec::new();
-            {
-                let line = self.stdin.get_line().to_string();
-                let it = StdinInputIterator::from(&line, self.stdin.get_row());
-                let lexer = Lexer::from(&mut self.stdin, it);
+            let mut ast = Vec::new();
 
-                for r in lexer {
-                    match r {
-                        Ok(t) => tokens.push(t),
-                        Err(se) => errors.push(se),
-                    }
-                }
-            }
-
-            let parser = Parser::from(
-                    tokens.iter().peekable(),
-                    &tokens,
-                    self.stdin.get_name()
-            );
-
-            for r in parser {
+            for r in Lexer::new(&line, row + 1) { // Lexe input
                 match r {
-                   Ok(n) => nodes.push(n),
-                   Err(se) => errors.push(se),
-                }
-            }
-
-            for node in nodes {
-                use codegen::IRBuilder;
-                match node.gen_ir(&mut context, &mut module_provider) {
-                    Ok(i) => ir.push(i),
+                    Ok(token) => tokens.push(token),
                     Err(se) => errors.push(se),
                 }
             }
 
-            if errors.len() != 0 {
-                for se in errors {
-                    se.print_error();
-                }
+            if self.args.stop_after_lexer {
+                print_errors(&errors);
+                print_vec(&tokens);
                 continue
             }
 
-            for i in ir {
-                i.dump();
+            for r in Parser::new(tokens) {
+                match r {
+                    Ok(node) => ast.push(node),
+                    Err(se) => errors.push(se),
+                }
             }
+
+            if self.args.stop_after_parser {
+                print_errors(&errors);
+                print_vec(&ast);
+                continue
+            }
+
+            // Generate IR
+            for r in ast.iter() {
+                match r.gen_ir(&mut context, &mut module_provider) {
+                    Ok(i) => i.dump(),
+                    Err(se) => errors.push(se),
+                }
+            }
+
+            print_errors(&errors);
         }
+        module_provider.dump();
     }
 }
-

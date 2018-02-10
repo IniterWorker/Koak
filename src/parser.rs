@@ -2,220 +2,97 @@
 //! Koak's parser
 //!
 
-use std::collections::HashMap;
-use std::iter::Peekable;
-use std::slice::Iter;
-
-use syntaxerror::{SyntaxError, ErrorReason};
 use lexer::{Token, TokenType};
+use error::{SyntaxError, ErrorReason};
+use lang::expr::{Expr, parse_expr};
+use lang::func::{Func, parse_func_def};
+use lang::extern_func::{ExternFunc, parse_extern_func};
+use codegen::{IRContext, IRGenerator, IRModuleProvider, IRResult};
 
-#[derive(Debug, Clone)]
+pub type ParserResult = Result<ASTNode, SyntaxError>;
+
+///
+/// All root declarations possibles.
+///
+#[derive(Debug)]
 pub enum ASTNode {
-    Expr(Expr),
-    ExternProto(Prototype),
-    Func(Prototype, Expr), // Prototype, Content
+    ExternProto(ExternFunc),
+    FuncDef(Func),
+    TopLevelExpr(Expr),
 }
 
-#[derive(Debug, Clone)]
-pub struct Prototype(pub (Token, String), pub Vec<(Token, String)>); // Name and args
-
-#[derive(Debug, Clone)]
-pub struct Expr(pub Token, pub ExprType);
-
-#[derive(Debug, Clone)]
-pub enum ExprType {
-    Number(f64),
-    Variable(String),
-    Binary(char, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
-    Call(String, Vec<Expr>), // Name, args
+impl IRGenerator for ASTNode {
+    #[inline]
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
+        match self {
+            &ASTNode::ExternProto(ref proto) => proto.gen_ir(context, module_provider),
+            &ASTNode::FuncDef(ref func) => func.gen_ir(context, module_provider),
+            &ASTNode::TopLevelExpr(ref expr) => Func::new_anonymous((*expr).clone()).gen_ir(context, module_provider),
+        }
+    }
 }
 
-pub struct Parser<'a> {
-    tokens: Peekable<Iter<'a, Token>>,
-    last_token: Token,
-    bin_ops: HashMap<char, i32>,
-    file_name: String,
+///
+/// The parser is basically a structure holding common used items and helper functions.
+/// Most of the parsing are done in the core language modules (in lang::*).
+///
+pub struct Parser {
+    pub tokens: Vec<Token>,
+    pub last_tok: Token,
 }
 
-impl<'a> Parser<'a> {
-    pub fn from(tokens: Peekable<Iter<'a, Token>>, vec: &Vec<Token>, file_name: &str) -> Parser<'a> {
-        let last_token = vec.last().map(|x| x.clone()).unwrap_or(Token::new());
+impl Parser {
+    #[inline]
+    pub fn new(mut tokens: Vec<Token>) -> Parser {
+        tokens.reverse();
+        let last_tok = tokens.first().map(|t| t.clone()).unwrap_or(Token::new());
         Parser {
-            tokens: tokens,
-            last_token: last_token,
-            bin_ops: [
-                         ('<', 10),
-                         ('>', 10),
-                         ('+', 20),
-                         ('-', 20),
-                         ('*', 40),
-                         ('/', 40),
-                         ('%', 40),
-            ].iter().cloned().collect(),
-            file_name: file_name.to_string(),
+            tokens: tokens, // Reverse so that the current token is the last one
+            last_tok: last_tok,
         }
     }
 
     #[inline]
-    fn peek_type(&mut self) -> Option<TokenType> {
-        self.tokens.peek().map(|x| x.token_type.clone())
+    pub fn peek_type(&self) -> Option<&TokenType> {
+        self.tokens.last().map(|x| &x.token_type)
     }
 
     #[inline]
-    fn next_or(&mut self, er: ErrorReason) -> Result<Token, SyntaxError> {
-        self.tokens.next().ok_or(SyntaxError::from_token(&self.file_name, &self.last_token, er)).map(|x| x.clone())
+    pub fn next_or(&mut self, er: ErrorReason) -> Result<Token, SyntaxError> {
+        self.tokens.pop().ok_or(SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
     }
 
     #[inline]
-    fn peek_or(&mut self, er: ErrorReason) -> Result<Token, SyntaxError> {
-        self.tokens.peek().ok_or(SyntaxError::from_token(&self.file_name, &self.last_token, er)).map(|x| (*x).clone())
+    pub fn peek_or(&self, er: ErrorReason) -> Result<&Token, SyntaxError> {
+        self.tokens.last().ok_or(SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
     }
 
-
-    fn parse_call_args(&mut self) -> Result<Vec<Expr>, SyntaxError> {
-        let mut v = Vec::new();
-
-        match self.peek_type() {
-            Some(TokenType::Operator(')')) => Ok(v),
-            _ => {
-                loop {
-                    v.push(self.parse_expr()?);
-                    match self.peek_type() {
-                        Some(TokenType::Operator(',')) => {
-                            self.tokens.next(); // eat ','
-                        },
-                        _ => break,
-                    }
-                }
-                Ok(v)
-            },
-        }
+    #[inline]
+    fn parse_function_def(&mut self) -> Result<ASTNode, SyntaxError> {
+        Ok(ASTNode::FuncDef(parse_func_def(self)?))
     }
 
-    fn parse_bin_rhs(&mut self, i: i32, lhs: Expr) -> Result<Expr, SyntaxError> {
-        match self.peek_type() {
-            Some(TokenType::Operator(c)) => {
-                let prec = *self.bin_ops.get(&c).unwrap_or(&-1);
-                if prec < i {
-                    Ok(lhs)
-                } else {
-                    let op = self.tokens.next().unwrap(); // Eat operator
-                    self.peek_or(ErrorReason::ExprExpected)?;
-                    let rhs = self.parse_primary()?;
-
-                    let rhs = {
-                        match self.peek_type() {
-                            Some(TokenType::Operator(c2)) => {
-                                let prec_next = *self.bin_ops.get(&c2).unwrap_or(&-1);
-                                if prec < prec_next {
-                                    self.parse_bin_rhs(prec + 1, rhs)?
-                                } else {
-                                    rhs
-                                }
-                            },
-                            _ => rhs,
-                        }
-                    };
-                    let lhs = Expr(op.clone(), ExprType::Binary(c, Box::new(lhs), Box::new(rhs)));
-                    self.parse_bin_rhs(i, lhs)
-                }
-            },
-            _ => Ok(lhs),
-        }
-    }
-
-    fn parse_primary(&mut self) -> Result<Expr, SyntaxError> {
-        let t = self.next_or(ErrorReason::ExprExpected)?;
-        match t.token_type {
-            TokenType::Number(n) => Ok(Expr(t.clone(), ExprType::Number(n))),
-            TokenType::Operator('(') => {
-                let e = self.parse_expr()?;
-
-                let t = self.next_or(ErrorReason::UnmatchedParenthesis)?;
-                match t.token_type {
-                    TokenType::Operator(')') => Ok(e),
-                    _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::UnmatchedParenthesis)),
-                }
-            },
-            TokenType::Identifier(ref s) => {
-                match self.peek_type() {
-                    Some(TokenType::Operator('(')) => {
-                        self.tokens.next(); // Eat '('
-                        let args = self.parse_call_args()?;
-                        let t = self.next_or(ErrorReason::UnmatchedParenthesis)?;
-                        match t.token_type {
-                            TokenType::Operator(')') => Ok(Expr(t.clone(), ExprType::Call(s.to_string(), args))),
-                            _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::UnmatchedParenthesis)),
-                        }
-                    },
-                    _ => Ok(Expr(t.clone(), ExprType::Variable(s.to_string()))),
-                }
-            },
-            _ => Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::ExprExpected)),
-        }
-    }
-
-    fn parse_expr(&mut self) -> Result<Expr, SyntaxError> {
-        let expr = self.parse_primary()?;
-        self.parse_bin_rhs(0, expr)
-    }
-
-    fn parse_prototype(&mut self) -> Result<Prototype, SyntaxError> {
-        let t = self.next_or(ErrorReason::ExpectedFuncName)?;
-        if let TokenType::Identifier(ref s) = t.token_type {
-            let t2 = self.next_or(ErrorReason::ExpectedOpenParenthesis)?;
-            match t2.token_type {
-                TokenType::Operator('(') => {
-
-                    // Parse args
-                    let mut args = Vec::new();
-                    while let Some(TokenType::Identifier(s)) = self.peek_type() {
-                        let t = self.tokens.next().unwrap();
-                        args.push((t.clone(), s));
-                    }
-
-                    let t3 = self.next_or(ErrorReason::UnmatchedParenthesis)?;
-                    match t3.token_type {
-                        TokenType::Operator(')') => {
-                            Ok(Prototype((t.clone(), s.to_string()), args))
-                        },
-                        _ => Err(SyntaxError::from_token(&self.file_name, &t3, ErrorReason::ArgMustBeIdentifier))
-                    }
-                },
-                _ => Err(SyntaxError::from_token(&self.file_name, &t2, ErrorReason::ExpectedOpenParenthesis))
-            }
-        } else {
-            Err(SyntaxError::from_token(&self.file_name, &t, ErrorReason::ExpectedFuncName))
-        }
-    }
-
-    fn parse_function_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
-        self.tokens.next(); // Eat def
-        let proto = self.parse_prototype()?;
-        let content = self.parse_expr()?;
-        Ok(ASTNode::Func(proto, content))
-    }
-
+    #[inline]
     fn parse_extern_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
-        self.tokens.next(); // Eat extern
-        Ok(ASTNode::ExternProto(self.parse_prototype()?))
+        Ok(ASTNode::ExternProto(parse_extern_func(self)?))
     }
 
-    fn parse_expr_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
-        let expr = self.parse_expr()?;
-        Ok(ASTNode::Expr(expr))
+    #[inline]
+    fn parse_toplevel_expr(&mut self) -> Result<ASTNode, SyntaxError> {
+        let expr = parse_expr(self)?;
+        Ok(ASTNode::TopLevelExpr(expr))
     }
 }
 
-impl<'a> Iterator for Parser<'a> {
-    type Item = Result<ASTNode, SyntaxError>;
+impl Iterator for Parser {
+    type Item = ParserResult;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let r = self.peek_type()?;
-        match r {
-            TokenType::Def => Some(self.parse_function_declaration()),
-            TokenType::Extern => Some(self.parse_extern_declaration()),
-            _ => Some(self.parse_expr_declaration())
+        match self.peek_type()? {
+            &TokenType::Def => Some(self.parse_function_def()),
+            &TokenType::Extern => Some(self.parse_extern_declaration()),
+            _ => Some(self.parse_toplevel_expr())
         }
     }
 }

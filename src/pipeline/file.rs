@@ -1,68 +1,84 @@
 //!
-//! File Input Koak's Toolchain
+//! Koak's stdin pipeline.
 //!
 
-use std::io;
-use std::process::exit;
-
+use args::Args;
 use lexer::Lexer;
 use parser::Parser;
-use input::{InputFeeder, FileInput, FileInputIterator};
-use super::KoakPipeLine;
+use error::print_errors;
+use input::{SourceInput, FileSourceInput};
+use codegen::{SimpleModuleProvider, IRModuleProvider, IRContext, IRGenerator};
 
-pub struct FileKoakPipeLine {
-    input: FileInput,
+use super::print_vec;
+
+pub struct FilePipeline<'a> {
+    input: FileSourceInput,
+    args: &'a Args,
 }
 
-impl FileKoakPipeLine {
-    pub fn from(path: &str) -> Result<FileKoakPipeLine, (String, io::Error)> {
-        Ok(FileKoakPipeLine {
-            input: FileInput::from(path)?,
-        })
+impl<'a> FilePipeline<'a> {
+    #[inline]
+    pub fn new(input: FileSourceInput, args: &'a Args) -> FilePipeline {
+        FilePipeline {
+            input: input,
+            args: args,
+        }
     }
-}
 
-impl KoakPipeLine for FileKoakPipeLine {
-    fn run(&mut self) {
+    ///
+    /// Runs the Koak's whole pipeline.
+    ///
+    pub fn run(&mut self) {
+        let mut context = IRContext::new();
+        let mut module_provider = SimpleModuleProvider::from(self.input.get_name(), self.args.optimization);
+
+        // Vector of errors
         let mut errors = Vec::new();
         let mut tokens = Vec::new();
-        let mut nodes = Vec::new();
+        let mut ast = Vec::new();
+        let mut ir = Vec::new();
 
-        while self.input.new_line() {
-            let line = self.input.get_line().to_string();
-            let it = FileInputIterator::from(&line, self.input.get_row());
-            let lexer = Lexer::from(&mut self.input, it);
+        // Iterate on lines
+        for (row, line) in (&mut self.input).enumerate() {
 
-            for r in lexer {
+            for r in Lexer::new(&line, row + 1) { // Lexe input
                 match r {
-                    Ok(t) => tokens.push(t),
+                    Ok(token) => tokens.push(token),
                     Err(se) => errors.push(se),
                 }
             }
         }
 
-        let parser = Parser::from(
-                tokens.iter().peekable(),
-                &tokens,
-                self.input.get_name()
-        );
+        if self.args.stop_after_lexer {
+            print_errors(&errors);
+            print_vec(&tokens);
+            return;
+        }
 
-        for r in parser {
+        for r in Parser::new(tokens) {
             match r {
-               Ok(n) => nodes.push(n),
-               Err(se) => errors.push(se),
+                Ok(node) => ast.push(node),
+                Err(se) => errors.push(se),
+            }
+        }
+
+        if self.args.stop_after_parser {
+            print_errors(&errors);
+            print_vec(&ast);
+            return;
+        }
+
+        for r in ast.iter() {
+            match r.gen_ir(&mut context, &mut module_provider) {
+                Ok(i) => ir.push(i),
+                Err(se) => errors.push(se),
             }
         }
 
         if errors.len() != 0 {
-            for se in errors {
-                se.print_error();
-            }
-            exit(1);
-        }
-
-        for node in nodes {
-            println!("{:?}", node);
+            print_errors(&errors);
+        } else {
+            module_provider.dump();
         }
     }
 }

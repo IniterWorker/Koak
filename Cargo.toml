@@ -1,13 +1,14 @@
 [package]
 name = "koak"
-version = "1.0.0"
+version = "0.1.0"
 authors = ["Benjamin Grange <benjamin.grange@epitech.eu>"]
 
 [dependencies]
 ansi_term = "0.9"
 rustyline = "1.0.0"
+getopts = "0.2"
+lazy_static = "1.0"
 llvm-sys = "0.2.1"
 
 [dependencies.iron_llvm]
 path = "iron-llvm/"
-#git = "https://github.com/Arignir/iron-llvm"

@@ -1,13 +1,18 @@
 //!
-//! Koak's pipeline
+//! Koak's pipeline.
 //!
 
 mod stdin;
 mod file;
 
-pub use self::stdin::StdinKoakPipeLine as StdinKoakPipeLine;
-pub use self::file::FileKoakPipeLine as FileKoakPipeLine;
+pub use self::stdin::StdinPipeline as StdinPipeline;
+pub use self::file::FilePipeline as FilePipeline;
 
-pub trait KoakPipeLine {
-    fn run(&mut self);
+use std::fmt;
+
+#[inline]
+fn print_vec<T: fmt::Debug>(errors: &Vec<T>) {
+    for e in errors {
+        println!("{:?}", e);
+    }
 }

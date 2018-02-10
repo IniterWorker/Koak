@@ -1,102 +1,55 @@
 //!
-//! Koak's input feeder based on a file.
+//! File input source
 //!
 
 use std::io;
+use std::rc::Rc;
+use std::io::{BufRead, BufReader};
 use std::fs::File;
-use std::str::Chars;
-use std::iter::Peekable;
-use std::io::{BufReader, BufRead, Lines};
 
-use super::{InputFeeder, InputFeederIterator};
+use super::SourceInput;
 
-#[derive(Debug)]
-pub struct FileInput {
+pub struct FileSourceInput {
+    bufreader: BufReader<File>,
     path: String,
-    line: String,
-    lines: Lines<BufReader<File>>,
-    row: usize,
 }
 
-impl FileInput {
-    pub fn from(path: &str) -> Result<FileInput, (String, io::Error)> {
-        File::open(path).map(|file| {
-            FileInput {
-                path: String::from(path),
-                line: String::new(),
-                lines: BufReader::new(file).lines(),
-                row: 0,
-            }
-        }).map_err(|e| (String::from(path), e))
-    }
-
-    pub fn new_line(&mut self) -> bool {
-        if let Some(Ok(line)) = self.lines.next() {
-            self.line = line;
-            self.row += 1;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn get_row(&self) -> usize {
-        self.row
-    }
-}
-
-impl InputFeeder for FileInput {
-    fn get_name(&self) -> &str {
-        &self.path
-    }
-
-    fn get_line(&self) -> &str {
-        &self.line
-    }
-}
-
-pub struct FileInputIterator<'a> {
-    chars: Peekable<Chars<'a>>,
-    col: usize,
-    row: usize,
-}
-
-impl<'a> FileInputIterator<'a> {
+impl FileSourceInput {
     #[inline]
-    pub fn from(line: &str, row: usize) -> FileInputIterator {
-        FileInputIterator {
-            chars: line.chars().peekable(),
-            col: 0,
-            row: row,
-        }
+    pub fn open(path: &str) -> Result<FileSourceInput, io::Error> {
+        File::open(path).map(|file| {
+            FileSourceInput {
+                bufreader: BufReader::new(file),
+                path: path.to_string(),
+            }
+        })
     }
 }
 
-impl<'a> Iterator for FileInputIterator<'a> {
-    type Item = char;
+impl Iterator for FileSourceInput {
+    type Item = Rc<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(c) = self.chars.next() {
-            self.col += 1;
-            Some(c)
-        } else {
-            None
+        let mut line = String::new();
+        match self.bufreader.read_line(&mut line) {
+            Ok(c) => {
+                if c != 0 {
+                    if line.as_bytes().last() == Some(&('\n' as u8)) { // Remove last '\n'
+                        line.pop();
+                    }
+                    Some(Rc::new(line))
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
         }
     }
 }
 
-impl<'a> InputFeederIterator for FileInputIterator<'a> {
+impl SourceInput for FileSourceInput {
     #[inline]
-    fn get_row(&self) -> usize {
-        self.row
-    }
-    #[inline]
-    fn get_col(&self) -> usize {
-        self.col
-    }
-
-    #[inline]
-    fn peek(&mut self) -> Option<Self::Item> {
-        self.chars.peek().map(|x| *x)
+    fn get_name(&self) -> &str {
+        &self.path
     }
 }

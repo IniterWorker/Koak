@@ -1,25 +1,15 @@
 //!
-//! Input feeder
+//! Koak's input sources.
 //!
 
-use std::fmt::Debug;
-
-mod file;
 mod stdin;
+mod file;
 
-pub use self::stdin::StdinInput as StdinInput;
-pub use self::stdin::StdinInputIterator as StdinInputIterator;
+pub use self::stdin::StdinSourceInput as StdinSourceInput;
+pub use self::file::FileSourceInput as FileSourceInput;
 
-pub use self::file::FileInput as FileInput;
-pub use self::file::FileInputIterator as FileInputIterator;
+use std::rc::Rc;
 
-pub trait InputFeeder: Debug {
+pub trait SourceInput: Iterator<Item=Rc<String>> {
     fn get_name(&self) -> &str;
-    fn get_line(&self) -> &str;
-}
-
-pub trait InputFeederIterator: Iterator<Item=char> {
-    fn get_row(&self) -> usize;
-    fn get_col(&self) -> usize;
-    fn peek(&mut self) -> Option<Self::Item>;
 }
