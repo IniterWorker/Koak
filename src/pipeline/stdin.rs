@@ -7,7 +7,7 @@ use lexer::Lexer;
 use parser::{Parser, ASTNode};
 use error::print_errors;
 use input::{SourceInput, StdinSourceInput};
-use codegen::{IRModuleProvider, IRContext, IRGenerator};
+use codegen::{IRContext, IRGenerator};
 use jit::JitModuleProvider;
 
 use iron_llvm::core::Value;
@@ -40,6 +40,7 @@ impl<'a> StdinPipeline<'a> {
             let mut errors = Vec::new();
             let mut tokens = Vec::new();
             let mut ast = Vec::new();
+            let mut irs = Vec::new();
 
             for r in Lexer::new(&line, row + 1) { // Lexe input
                 match r {
@@ -71,17 +72,26 @@ impl<'a> StdinPipeline<'a> {
             for r in ast.iter() {
                 match r.gen_ir(&mut context, &mut module_provider) {
                     Ok(i) => {
-                        i.dump();
                         if let &ASTNode::TopLevelExpr(_) = r { // Exec top level expressions
-                            println!("=> {}", module_provider.run_function(i));
+                            if errors.len() == 0 { // Don't exec if errors
+                                println!("=> {}", module_provider.run_function(i));
+                            }
+                        } else {
+                            irs.push(i); // Append IR only when non-top level expression
                         }
                     },
                     Err(se) => errors.push(se),
                 }
             }
 
-            print_errors(&errors);
+            // Print errors or generated code
+            if errors.len() == 0 {
+                for ir in irs {
+                    ir.dump();
+                }
+            } else {
+                print_errors(&errors);
+            }
         }
-        module_provider.dump();
     }
 }
