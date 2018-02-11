@@ -6,9 +6,6 @@ Cargo.lock
 /target/
 **/*.rs.bk
 
-test*
 *.vim
-
-*.ks
 
 docker.sh
