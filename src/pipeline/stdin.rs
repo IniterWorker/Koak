@@ -4,10 +4,11 @@
 
 use args::Args;
 use lexer::Lexer;
-use parser::Parser;
+use parser::{Parser, ASTNode};
 use error::print_errors;
 use input::{SourceInput, StdinSourceInput};
-use codegen::{SimpleModuleProvider, IRModuleProvider, IRContext, IRGenerator};
+use codegen::{IRModuleProvider, IRContext, IRGenerator};
+use jit::JitModuleProvider;
 
 use iron_llvm::core::Value;
 
@@ -32,7 +33,7 @@ impl<'a> StdinPipeline<'a> {
     ///
     pub fn run(&mut self) {
         let mut context = IRContext::new();
-        let mut module_provider = SimpleModuleProvider::from(self.input.get_name(), self.args.optimization);
+        let mut module_provider = JitModuleProvider::from(self.input.get_name(), self.args.optimization);
 
         // Iterate on stdin
         for (row, line) in (&mut self.input).enumerate() {
@@ -69,7 +70,12 @@ impl<'a> StdinPipeline<'a> {
             // Generate IR
             for r in ast.iter() {
                 match r.gen_ir(&mut context, &mut module_provider) {
-                    Ok(i) => i.dump(),
+                    Ok(i) => {
+                        i.dump();
+                        if let &ASTNode::TopLevelExpr(_) = r { // Exec top level expressions
+                            println!("=> {}", module_provider.run_function(i));
+                        }
+                    },
                     Err(se) => errors.push(se),
                 }
             }

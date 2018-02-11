@@ -2,6 +2,7 @@
 name = "koak"
 version = "0.1.0"
 authors = ["Benjamin Grange <benjamin.grange@epitech.eu>"]
+build = "build.rs"
 
 [dependencies]
 ansi_term = "0.9"

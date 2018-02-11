@@ -20,6 +20,7 @@ mod error;
 mod parser;
 mod lang;
 mod codegen;
+mod jit;
 
 use pipeline::{FilePipeline, StdinPipeline};
 use input::FileSourceInput;

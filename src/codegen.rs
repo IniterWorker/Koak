@@ -20,11 +20,9 @@ pub struct IRContext {
     pub builder: core::Builder,
     pub named_values: HashMap<String, LLVMValueRef>,
     pub double_type: RealTypeRef,
-
 }
 
 impl IRContext {
-
     pub fn new() -> IRContext {
         IRContext {
             context: core::Context::get_global(),
@@ -61,16 +59,7 @@ pub struct SimpleModuleProvider {
 impl SimpleModuleProvider {
     pub fn from(name: &str, optimizations: bool) -> SimpleModuleProvider {
         let m = core::Module::new(name);
-        let mut pm = core::FunctionPassManager::new(&m);
-
-        if optimizations {
-            pm.add_basic_alias_analysis_pass();
-            pm.add_instruction_combining_pass();
-            pm.add_reassociate_pass();
-            pm.add_GVN_pass();
-            pm.add_CFG_simplification_pass();
-        }
-        pm.initialize();
+        let pm = get_pass_manager(&m, optimizations);
 
         SimpleModuleProvider {
             module: core::Module::new(name),
@@ -89,13 +78,26 @@ impl IRModuleProvider for SimpleModuleProvider {
     }
 
     fn get_function(&mut self, name: &str) -> Option<FunctionRef> {
-        match self.module.get_function_by_name(name) {
-            Some(f) => Some(f),
-            None => None
-        }
+        self.module.get_function_by_name(name)
     }
 
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
         &mut self.pass_manager
     }
+}
+
+///
+/// Returns a pass manager depending on the given parameters
+///
+pub fn get_pass_manager(m: &core::Module, optimizations: bool) -> core::FunctionPassManager {
+    let mut pm = core::FunctionPassManager::new(&m);
+    if optimizations {
+        pm.add_basic_alias_analysis_pass();
+        pm.add_instruction_combining_pass();
+        pm.add_reassociate_pass();
+        pm.add_GVN_pass();
+        pm.add_CFG_simplification_pass();
+    }
+    pm.initialize();
+    pm
 }
