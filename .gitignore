@@ -7,5 +7,3 @@ Cargo.lock
 **/*.rs.bk
 
 *.vim
-
-docker.sh
