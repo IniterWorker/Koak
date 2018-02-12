@@ -138,7 +138,7 @@ pub struct TinyError<'a>(&'a SyntaxError);
 impl<'a> fmt::Display for TinyError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let se = self.0;
-        writeln!(f, "{} at line {}, column {}: {}", red!("Syntax Error"), se.row, se.col.0, se.what)
+        write!(f, "{} at line {}, column {}: {}", red!("Syntax Error"), se.row, se.col.0, se.what)
     }
 }
 
