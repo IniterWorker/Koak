@@ -13,6 +13,7 @@ pub struct Args {
     pub stop_after_lexer: bool,
     pub stop_after_parser: bool,
     pub optimization: bool,
+    pub tiny_errors: bool,
 }
 
 impl Args {
@@ -26,6 +27,7 @@ impl Args {
         opts.optflag("l", "lexer", "stops after lexing, dumping the generated tokens");
         opts.optflag("p", "parser", "stops after parsing, dumping the generated AST");
         opts.optflag("O", "optimization", "enables various optimizations");
+        opts.optflag("t", "tiny-errors", "makes errors less verbose");
 
         let matches = match opts.parse(&args[1..]) {
             Ok(m) => m,
@@ -54,6 +56,7 @@ impl Args {
             stop_after_lexer: matches.opt_present("l"),
             stop_after_parser: matches.opt_present("p"),
             optimization: matches.opt_present("O"),
+            tiny_errors: matches.opt_present("t"),
         }
     }
 }

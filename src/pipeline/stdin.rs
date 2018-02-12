@@ -50,8 +50,11 @@ impl<'a> StdinPipeline<'a> {
             }
 
             if self.args.stop_after_lexer {
-                print_errors(&errors);
-                print_vec(&tokens);
+                if errors.len() != 0 {
+                    print_errors(self.args, &errors);
+                } else {
+                    print_vec(&tokens);
+                }
                 continue
             }
 
@@ -63,8 +66,11 @@ impl<'a> StdinPipeline<'a> {
             }
 
             if self.args.stop_after_parser {
-                print_errors(&errors);
-                print_vec(&ast);
+                if errors.len() != 0 {
+                    print_errors(self.args, &errors);
+                } else {
+                    print_vec(&ast);
+                }
                 continue
             }
 
@@ -85,12 +91,12 @@ impl<'a> StdinPipeline<'a> {
             }
 
             // Print errors or generated code
-            if errors.len() == 0 {
+            if errors.len() != 0 {
+                print_errors(self.args, &errors);
+            } else {
                 for ir in irs {
                     ir.dump();
                 }
-            } else {
-                print_errors(&errors);
             }
         }
     }

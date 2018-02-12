@@ -10,6 +10,7 @@ rustyline = "1.0.0"
 getopts = "0.2"
 lazy_static = "1.0"
 llvm-sys = "0.2.1"
+libc = "0.1.10"
 
 [dependencies.iron_llvm]
 path = "iron-llvm/"

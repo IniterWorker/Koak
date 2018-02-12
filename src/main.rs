@@ -9,6 +9,7 @@ extern crate ansi_term;
 extern crate getopts;
 extern crate llvm_sys;
 extern crate iron_llvm;
+extern crate libc;
 
 use std::process::exit;
 
@@ -36,6 +37,7 @@ fn main() {
         let mut pipeline = StdinPipeline::new(&args);
         pipeline.run();
     } else {
+        let mut out = false;
         for file in &args.input {
             let fsi = match FileSourceInput::open(&file) {
                 Ok(fsi) => fsi,
@@ -45,7 +47,10 @@ fn main() {
                 },
             };
             let mut pipeline = FilePipeline::new(fsi, &args);
-            pipeline.run();
+            out |= pipeline.run()
+        }
+        if out {
+            exit(1);
         }
     }
 }

@@ -28,7 +28,7 @@ impl<'a> FilePipeline<'a> {
     ///
     /// Runs the Koak's whole pipeline.
     ///
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> bool {
         let mut context = IRContext::new();
         let mut module_provider = SimpleModuleProvider::from(self.input.get_name(), self.args.optimization);
 
@@ -50,9 +50,12 @@ impl<'a> FilePipeline<'a> {
         }
 
         if self.args.stop_after_lexer {
-            print_errors(&errors);
-            print_vec(&tokens);
-            return;
+            if errors.len() != 0 {
+                print_errors(self.args, &errors);
+            } else {
+                print_vec(&tokens);
+            }
+            return errors.len() != 0;
         }
 
         for r in Parser::new(tokens) {
@@ -63,9 +66,12 @@ impl<'a> FilePipeline<'a> {
         }
 
         if self.args.stop_after_parser {
-            print_errors(&errors);
-            print_vec(&ast);
-            return;
+            if errors.len() != 0 {
+                print_errors(self.args, &errors);
+            } else {
+                print_vec(&ast);
+            }
+            return errors.len() != 0;
         }
 
         for r in ast.iter() {
@@ -76,9 +82,11 @@ impl<'a> FilePipeline<'a> {
         }
 
         if errors.len() != 0 {
-            print_errors(&errors);
+            print_errors(self.args, &errors);
+            true
         } else {
             module_provider.dump();
+            false
         }
     }
 }

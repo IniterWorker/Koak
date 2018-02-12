@@ -5,10 +5,44 @@
 use std::rc::Rc;
 use std::fmt;
 
+use libc;
 use ansi_term::Colour::*;
 
+use args::Args;
 use lexer::Token;
 
+///
+/// Quick macro to enable colors if stderr is a tty
+///
+
+macro_rules! color {
+    ($color:expr, $( $arg:expr ), *) => {
+        if unsafe { libc::isatty(2) } == 1 {
+            format!("{}", ($color.bold().paint(format!($( $arg ), * ))))
+        } else {
+            format!($( $arg ), * )
+        }
+    };
+}
+
+macro_rules! purple {
+    ( $var:expr ) => (color!(Purple, "{}", $var));
+    ( $( $arg:expr ), * ) => (color!(Purple, $( $arg ),* ));
+}
+
+macro_rules! red {
+    ( $var:expr ) => (color!(Red, "{}", $var));
+    ( $( $arg:expr ), * ) => (color!(Red, $( $arg ),* ));
+}
+
+macro_rules! green {
+    ( $var:expr ) => (color!(Green, "{}", $var));
+    ( $( $arg:expr ), * ) => (color!(Green, $( $arg ),* ));
+}
+
+///
+/// Enum of all possible errors.
+///
 #[allow(dead_code)]
 pub enum ErrorReason {
     UnknownChar(char),
@@ -32,9 +66,9 @@ impl fmt::Display for ErrorReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             &ErrorReason::UnknownChar(ref c) =>
-                write!(f, "Unknown char \'{}\'", Purple.bold().paint(c.to_string())),
+                write!(f, "Unknown char \'{}\'", purple!(c)),
             &ErrorReason::InvalidLitteralNum(ref s) =>
-                write!(f, "Invalid litteral number \"{}\"", Purple.bold().paint(s.to_string())),
+                write!(f, "Invalid litteral number \"{}\"", purple!(s)),
             &ErrorReason::UnmatchedParenthesis =>
                 write!(f, "Unmatched parenthesis"),
             &ErrorReason::ExprExpected =>
@@ -46,15 +80,15 @@ impl fmt::Display for ErrorReason {
             &ErrorReason::ArgMustBeIdentifier =>
                 write!(f, "Function arguments must be identifiers seperated by spaces"),
             &ErrorReason::UndefinedVariable(ref s) =>
-                write!(f, "Undefined variable \"{}\"", Purple.bold().paint(s.to_string())),
+                write!(f, "Undefined variable \"{}\"", purple!(s)),
             &ErrorReason::UndefinedFunction(ref s) =>
-                write!(f, "Undefined function \"{}\"", Purple.bold().paint(s.to_string())),
+                write!(f, "Undefined function \"{}\"", purple!(s)),
             &ErrorReason::WrongArgNumber(ref name, expected, given) =>
-                write!(f, "Wrong number of argument: The function \"{}\" expects {} argument(s), but {} are given.", Purple.bold().paint(name.to_string()), expected, given),
+                write!(f, "Wrong number of argument: The function \"{}\" expects {} argument(s), but {} are given.", purple!(name), expected, given),
             &ErrorReason::RedefinedFunc(ref name) =>
-                write!(f, "Redefinition of function \"{}\".", Purple.bold().paint(name.to_string())),
+                write!(f, "Redefinition of function \"{}\".", purple!(name)),
             &ErrorReason::RedefinedFuncWithDiffArgs(ref func) =>
-                write!(f, "Function \"{}\" redefined with different arguments.", Purple.bold().paint(func.to_string())),
+                write!(f, "Function \"{}\" redefined with different arguments.", purple!(func.to_string())),
         }
     }
 }
@@ -89,25 +123,48 @@ impl SyntaxError {
 }
 
 ///
-/// Implementation of the Display trait to print syntax errors
+/// Structure representing a syntax error that must be printed in it's complete form.
 ///
-impl fmt::Display for SyntaxError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        writeln!(f, "{} at line {}, column {}: {}", Red.bold().paint("Syntax Error"), self.row, self.col.0, self.what)?;
-        writeln!(f, "{}", self.line)?;
+pub struct ComplexError<'a>(&'a SyntaxError);
 
-        for (i, c) in self.line.char_indices() {
-            if i < self.col.0 - 1 { // Print prefix blank spaces
+///
+/// Structure representing a syntax error that must be printed in a tiny, non-verbose form.
+///
+pub struct TinyError<'a>(&'a SyntaxError);
+
+///
+/// Implementation of the Display trait to print tiny syntax errors
+///
+impl<'a> fmt::Display for TinyError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let se = self.0;
+        writeln!(f, "{} at line {}, column {}: {}", red!("Syntax Error"), se.row, se.col.0, se.what)
+    }
+}
+
+///
+/// Implementation of the Display trait to print complete syntax errors
+///
+impl<'a> fmt::Display for ComplexError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let se = self.0;
+        let te = TinyError(se);
+
+        writeln!(f, "{}", te)?; // Print tiny error first
+        writeln!(f, "{}", se.line)?;
+
+        for (i, c) in se.line.char_indices() {
+            if i < se.col.0 - 1 { // Print prefix blank spaces
                 if c == '\t' {
                     write!(f, "\t")?;
                 }
                 else {
                     write!(f, " ")?;
                 }
-            } else if i < self.col.1 - 1 { // Print '~'
-                write!(f, "{}", Green.bold().paint("~"))?;
+            } else if i < se.col.1 - 1 { // Print '~'
+                write!(f, "{}", green!("~"))?;
             } else { // Print '^'
-                write!(f, "{}", Green.bold().paint("^"))?;
+                write!(f, "{}", green!("^"))?;
                 break;
             }
         }
@@ -115,8 +172,11 @@ impl fmt::Display for SyntaxError {
     }
 }
 
-pub fn print_errors(errors: &Vec<SyntaxError>) {
+pub fn print_errors(args: &Args, errors: &Vec<SyntaxError>) {
     for e in errors {
-        eprintln!("{}", e);
+        match args.tiny_errors {
+            true => eprintln!("{}", TinyError(e)),
+            _ => eprintln!("{}", ComplexError(e)),
+        }
     }
 }
