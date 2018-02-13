@@ -12,20 +12,20 @@ use llvm_sys::LLVMRealPredicate::LLVMRealOLT;
 use iron_llvm::LLVMRef;
 use iron_llvm::core::value::{Function, RealConstRef, RealConstCtor};
 
-use lexer::{Token, TokenType};
+use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 
 lazy_static! {
-    static ref BIN_OPS: HashMap<char, i32> = [
-        ('<', 10),
-        ('>', 10),
-        ('+', 20),
-        ('-', 20),
-        ('*', 40),
-        ('/', 40),
-        ('%', 40),
+    static ref BIN_OPS: HashMap<OperatorType, i32> = [
+        (OperatorType::Less, 80),
+        (OperatorType::More, 80),
+        (OperatorType::Add, 100),
+        (OperatorType::Sub, 100),
+        (OperatorType::Mul, 110),
+        (OperatorType::Div, 110),
+        (OperatorType::Rem, 110),
     ].iter().cloned().collect();
 }
 
@@ -33,7 +33,7 @@ lazy_static! {
 pub enum ExprType {
     Number(f64),
     Variable(Rc<String>),
-    Binary(char, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
+    Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
     Call(Rc<String>, Vec<Expr>), // Name, args
 }
 
@@ -64,14 +64,12 @@ fn parse_call_args(parser: &mut Parser) -> Result<Vec<Expr>, SyntaxError> {
     let mut v = Vec::new();
 
     match parser.peek_type() {
-        Some(&TokenType::Operator(')')) => Ok(v),
+        Some(&TokenType::CloseParenthesis) => Ok(v),
         _ => {
             loop {
                 v.push(parse_expr(parser)?);
                 match parser.peek_type() {
-                    Some(&TokenType::Operator(',')) => {
-                        parser.tokens.pop(); // eat ','
-                    },
+                    Some(&TokenType::Comma) => { parser.tokens.pop(); } , // eat ','
                     _ => break,
                 }
             }
@@ -116,24 +114,24 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     let expr = parser.next_or(ErrorReason::ExprExpected)?;
     match expr.token_type {
         TokenType::Number(n) => Ok(Expr::new(expr, ExprType::Number(n))),
-        TokenType::Operator('(') => {
+        TokenType::OpenParenthesis => {
             let expr = parse_expr(parser)?;
 
             let close = parser.next_or(ErrorReason::UnmatchedParenthesis)?;
             match close.token_type {
-                TokenType::Operator(')') => Ok(expr),
+                TokenType::CloseParenthesis => Ok(expr),
                 _ => Err(SyntaxError::from(&close, ErrorReason::UnmatchedParenthesis)),
             }
         },
         TokenType::Identifier(_) => {
             let identifier = if let TokenType::Identifier(ref s) = expr.token_type { s.clone() } else { unreachable!() };
             match parser.peek_type() {
-                Some(&TokenType::Operator('(')) => { // Function call ?
+                Some(&TokenType::OpenParenthesis) => { // Function call ?
                     parser.tokens.pop(); // Eat '('
                     let args = parse_call_args(parser)?;
                     let close = parser.next_or(ErrorReason::UnmatchedParenthesis)?;
                     match close.token_type {
-                        TokenType::Operator(')') => Ok(Expr::new(expr, ExprType::Call(identifier, args))),
+                        TokenType::CloseParenthesis => Ok(Expr::new(expr, ExprType::Call(identifier, args))),
                         _ => Err(SyntaxError::from(&close, ErrorReason::UnmatchedParenthesis)),
                     }
                 },
@@ -159,24 +157,24 @@ impl IRGenerator for Expr {
                 Some(value) => Ok(*value),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string())))
             },
-            ExprType::Binary(op, ref lhs, ref rhs) => {
+            ExprType::Binary(ref op, ref lhs, ref rhs) => {
                 let lhs = lhs.gen_ir(context, module_provider)?;
                 let rhs = rhs.gen_ir(context, module_provider)?;
                 match op {
-                    '+' => Ok(context.builder.build_fadd(lhs, rhs, "addtmp")),
-                    '-' => Ok(context.builder.build_fsub(lhs, rhs, "subtmp")),
-                    '*' => Ok(context.builder.build_fmul(lhs, rhs, "mulmp")),
-                    '/' => Ok(context.builder.build_fdiv(lhs, rhs, "divtmp")),
-                    '%' => Ok(context.builder.build_frem(lhs, rhs, "modtmp")),
-                    '<' => {
+                    &OperatorType::Add => Ok(context.builder.build_fadd(lhs, rhs, "addtmp")),
+                    &OperatorType::Sub => Ok(context.builder.build_fsub(lhs, rhs, "subtmp")),
+                    &OperatorType::Mul => Ok(context.builder.build_fmul(lhs, rhs, "mulmp")),
+                    &OperatorType::Div => Ok(context.builder.build_fdiv(lhs, rhs, "divtmp")),
+                    &OperatorType::Rem => Ok(context.builder.build_frem(lhs, rhs, "modtmp")),
+                    &OperatorType::Less => {
                         let tmp = context.builder.build_fcmp(LLVMRealOLT, lhs, rhs, "cmptmp");
                         Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
                     },
-                    '>' => {
+                    &OperatorType::More => {
                         let tmp = context.builder.build_fcmp(LLVMRealOLT, rhs, lhs, "cmptmp");
                         Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
                     },
-                    _ => panic!("Unexpected binary operator \'{}\'.", op),
+                    _ => panic!("Unimplemented binary operator \'{:?}\'.", op),
                 }
             }
             ExprType::Call(ref name, ref args) => {

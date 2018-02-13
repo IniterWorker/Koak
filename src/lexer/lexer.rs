@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::iter::Peekable;
 use std::str::Chars;
 
-use lexer::{Token, TokenType, LexerResult};
+use lexer::{Token, TokenType, OperatorType, LexerResult};
 use error::{SyntaxError, ErrorReason};
 
 ///
@@ -156,6 +156,20 @@ impl<'a> Lexer<'a> {
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
         }
     }
+
+    fn lex_operators(&mut self, c: char) -> LexerResult {
+        let ty = match (c, self.chars.peek()) {
+            ('+', _) => OperatorType::Add,
+            ('-', _) => OperatorType::Sub,
+            ('*', _) => OperatorType::Mul,
+            ('/', _) => OperatorType::Div,
+            ('%', _) => OperatorType::Rem,
+            ('<', _) => OperatorType::Less,
+            ('>', _) => OperatorType::More,
+            _ => unreachable!(),
+        };
+        Ok(self.new_token(TokenType::Operator(ty)))
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -169,11 +183,12 @@ impl<'a> Iterator for Lexer<'a> {
                     ' ' | '\r' | '\t' | '\n' => self.next(), // Skip whitespace
                     'a'...'z' | 'A'...'Z' | '_' => Some(self.lex_identifier(c)),
                     '0'...'9' => Some(self.lex_number(c)),
-                    '#' => { self.lex_comment(); self.next() },
-                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' | '(' | ')' | ',' => {
-                        Some(Ok(self.new_token(TokenType::Operator(c))))
-                    },
+                    '+' | '-' | '*' | '/' | '%' | '>' | '<' => Some(self.lex_operators(c)),
+                    '(' => Some(Ok(self.new_token(TokenType::OpenParenthesis))),
+                    ')' => Some(Ok(self.new_token(TokenType::CloseParenthesis))),
+                    ',' => Some(Ok(self.new_token(TokenType::Comma))),
                     ';' => Some(Ok(self.new_token(TokenType::SemiColon))),
+                    '#' => { self.lex_comment(); self.next() },
                     _ => Some(Err(self.new_syntaxerror(ErrorReason::UnknownChar(c))))
                 }
             },
