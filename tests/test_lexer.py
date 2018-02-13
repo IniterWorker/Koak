@@ -12,6 +12,7 @@ class CustomLexerTestCase(CustomTestCase):
 
 class UnknownCharTest(CustomLexerTestCase):
     """
+    Lexer Test Case
     Test basic unknown char in the context
     """
 
@@ -33,6 +34,7 @@ class UnknownCharTest(CustomLexerTestCase):
 
 class KeywordsTest(CustomLexerTestCase):
     """
+    Lexer Test Case
     Test basic keyword
     """
 
@@ -44,6 +46,33 @@ class KeywordsTest(CustomLexerTestCase):
             "Identifier(\"bdef\")",
         ])
         self.assertKoakListEqual()
+
+
+class DelimiterTest(CustomLexerTestCase):
+    """
+    Lexer Test Case
+    Test basic linear expression
+    """
+
+    @pdg_if_fail
+    def test_delimiter_only(self):
+        self.stdin_append(";")
+        self.stdout_expected([
+            "SemiColon"
+        ])
+        self.assertKoakListEqual()
+        self.assertKoakZeroError()
+
+    @pdg_if_fail
+    def test_delimiter_multiple_empty(self):
+        self.stdin_append(";;;")
+        self.stdout_expected([
+            "SemiColon",
+            "SemiColon",
+            "SemiColon"
+        ])
+        self.assertKoakListEqual()
+        self.assertKoakZeroError()
 
 
 if __name__ == "__main__":

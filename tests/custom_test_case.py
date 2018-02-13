@@ -148,13 +148,13 @@ class CustomTestCase(TestCase):
                 and (stream_check is Stream.STDOUT_AND_STDERR
                      or stream_check is Stream.STDOUT):
             self.assertNotEqual(None, lout)
-            self.assertEqual(True, str(lout).__contains__(test_out))
+            self.assertEqual(True, str(lout).__contains__(test_out), msg="Last line stdout must contain: " + str(test_out))
 
         if test_error is not None \
                 and (stream_check is Stream.STDOUT_AND_STDERR
                      or stream_check is Stream.STDERR):
             self.assertNotEqual(None, lerr)
-            self.assertEqual(True, str(lerr).__contains__(test_error))
+            self.assertEqual(True, str(lerr).__contains__(test_error),  msg="Last line stdout must contain: " + str(test_error))
 
     def assertKoakLastErrorContain(self, test_error: str):
         self.assertKoakLastContain(None, test_error, Stream.STDERR)
@@ -181,10 +181,24 @@ class CustomTestCase(TestCase):
             self.assertEqual(test_error, str(lerr))
 
     def assertKoakLastErrorEqual(self, test_error: str):
+        self.runKoak()
         self.assertKoakLastEqual(None, test_error, Stream.STDERR)
 
     def assertKoakLastOutEqual(self, test_out: str):
+        self.runKoak()
         self.assertKoakLastEqual(None, test_out, Stream.STDOUT)
+
+    def assertKoakZeroError(self):
+        self.runKoak()
+        self.assertEqual(0,
+                         len(self.list_stderr),
+                         msg="No output in stderr is required !\nCurrent list errors:\n{0}".format(str(self.list_stderr)))
+
+    def assertKoakNeedError(self):
+        self.runKoak()
+        self.assertEqual(1,
+                         len(self.list_stderr) > 0,
+                         msg="No output in stderr is required !\nCurrent list errors:\n{0}".format(str(self.list_stderr)))
 
     def runKoak(self):
         if not self.run:
