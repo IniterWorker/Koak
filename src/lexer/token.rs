@@ -5,13 +5,19 @@
 use std::rc::Rc;
 use std::fmt;
 
+use super::OperatorType;
+
 #[derive(Debug, Clone)]
 pub enum TokenType {
     Def,
     Extern,
-    Operator(char),
+    Operator(OperatorType),
     Identifier(Rc<String>),
     Number(f64),
+    OpenParenthesis,
+    CloseParenthesis,
+    Comma,
+    SemiColon,
 
     Unknown,
 }

@@ -4,8 +4,9 @@
 
 use std::fmt;
 
+use lexer::TokenType;
 use parser::Parser;
-use error::SyntaxError;
+use error::{SyntaxError, ErrorReason};
 use lang::prototype::{Prototype, parse_prototype};
 use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 
@@ -34,8 +35,16 @@ impl fmt::Debug for ExternFunc {
 
 #[inline]
 pub fn parse_extern_func(parser: &mut Parser) -> Result<ExternFunc, SyntaxError> {
-    parser.tokens.pop(); // Eat def
-    Ok(ExternFunc::new(parse_prototype(parser)?))
+    let ext = parser.tokens.pop().unwrap(); // Eat extern
+
+    let proto = parse_prototype(parser)?;
+
+    if let Some(&TokenType::SemiColon) = parser.peek_type() { // Check for semi-colon
+        parser.tokens.pop();
+        Ok(ExternFunc::new(proto))
+    } else {
+        Err(SyntaxError::from(&ext, ErrorReason::MissingSemiColonAfterExtern))
+    }
 }
 
 impl IRGenerator for ExternFunc {

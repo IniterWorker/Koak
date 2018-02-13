@@ -44,7 +44,7 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<Prototype, SyntaxError> {
     if let TokenType::Identifier(_) = iden.token_type {
         let open = parser.next_or(ErrorReason::ExpectedOpenParenthesis)?;
         match open.token_type {
-            TokenType::Operator('(') => {
+            TokenType::OpenParenthesis => {
 
                 // Parse args
                 let mut args = Vec::new();
@@ -56,7 +56,7 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<Prototype, SyntaxError> {
 
                 let close = parser.next_or(ErrorReason::UnmatchedParenthesis)?;
                 match close.token_type {
-                    TokenType::Operator(')') => {
+                    TokenType::CloseParenthesis => {
                         let func_name = if let TokenType::Identifier(ref s) = iden.token_type { s.clone() } else { unreachable!() };
                         Ok(Prototype::new(iden, func_name, args))
                     }

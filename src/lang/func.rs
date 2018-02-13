@@ -11,9 +11,9 @@ use llvm_sys::core::LLVMDeleteFunction;
 use iron_llvm::core::value::{Function, FunctionRef};
 use iron_llvm::{LLVMRef, LLVMRefCtor};
 
-use lexer::Token;
+use lexer::{Token, TokenType};
 use parser::Parser;
-use error::SyntaxError;
+use error::{SyntaxError, ErrorReason};
 use lang::expr::{Expr, parse_expr};
 use lang::prototype::{Prototype, parse_prototype};
 use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
@@ -37,7 +37,15 @@ impl Func {
 
     #[inline]
     pub fn new_anonymous(b: Expr) -> Func {
-        Func::new(Prototype::new(Token::new(), Rc::new(String::new()), Vec::new()), b)
+        static mut NB_ANON: u64 = 0;
+
+        let mut name = String::from("__"); // Create unique name for anonymous function
+        unsafe {
+            name += &NB_ANON.to_string();
+            name += "$"; // Prevent the name from being taken by a user-defined function
+            NB_ANON += 1;
+        }
+        Func::new(Prototype::new(Token::new(), Rc::new(name), Vec::new()), b)
     }
 }
 
@@ -50,10 +58,16 @@ impl fmt::Debug for Func {
 
 #[inline]
 pub fn parse_func_def(parser: &mut Parser) -> Result<Func, SyntaxError> {
-    parser.tokens.pop(); // Eat def
+    let def = parser.tokens.pop().unwrap(); // Eat def
     let proto = parse_prototype(parser)?;
     let content = parse_expr(parser)?;
-    Ok(Func::new(proto, content))
+
+    if let Some(&TokenType::SemiColon) = parser.peek_type() { // Check for semi-colon
+        parser.tokens.pop();
+        Ok(Func::new(proto, content))
+    } else {
+        Err(SyntaxError::from(&def, ErrorReason::MissingSemiColonAfterDef))
+    }
 }
 
 impl IRGenerator for Func {

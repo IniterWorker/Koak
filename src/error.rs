@@ -44,6 +44,7 @@ macro_rules! green {
 /// Enum of all possible errors.
 ///
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum ErrorReason {
     UnknownChar(char),
     InvalidLitteralNum(String),
@@ -57,6 +58,9 @@ pub enum ErrorReason {
     WrongArgNumber(String, usize, usize),
     RedefinedFunc(String),
     RedefinedFuncWithDiffArgs(String),
+    MissingSemiColonAfterExtern,
+    MissingSemiColonAfterDef,
+    MissingSemiColonAfterTopLevelExpr,
 }
 
 ///
@@ -89,10 +93,17 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Redefinition of function \"{}\".", purple!(name)),
             &ErrorReason::RedefinedFuncWithDiffArgs(ref func) =>
                 write!(f, "Function \"{}\" redefined with different arguments.", purple!(func.to_string())),
+            &ErrorReason::MissingSemiColonAfterExtern =>
+                write!(f, "Missing semi-colon after an extern declaration"),
+            &ErrorReason::MissingSemiColonAfterDef =>
+                write!(f, "Missing semi-colon at the end of a function definition"),
+            &ErrorReason::MissingSemiColonAfterTopLevelExpr =>
+                write!(f, "Missing semi-colon at the end of a top-level expression"),
         }
     }
 }
 
+#[derive(Debug)]
 pub struct SyntaxError {
     line: Rc<String>,
     what: ErrorReason,
@@ -136,6 +147,7 @@ pub struct TinyError<'a>(&'a SyntaxError);
 /// Implementation of the Display trait to print tiny syntax errors
 ///
 impl<'a> fmt::Display for TinyError<'a> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let se = self.0;
         write!(f, "{} at line {}, column {}: {}", red!("Syntax Error"), se.row, se.col.0, se.what)
