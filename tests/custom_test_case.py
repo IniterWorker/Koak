@@ -172,13 +172,13 @@ class CustomTestCase(TestCase):
                 and (stream_check is Stream.STDOUT_AND_STDERR
                      or stream_check is Stream.STDOUT):
             self.assertNotEqual(None, lout)
-            self.assertEqual(str(lout), test_out)
+            self.assertEqual(test_out, str(lout))
 
         if test_error is not None \
                 and (stream_check is Stream.STDOUT_AND_STDERR
                      or stream_check is Stream.STDERR):
             self.assertNotEqual(None, lerr)
-            self.assertEqual(str(lerr), test_error)
+            self.assertEqual(test_error, str(lerr))
 
     def assertKoakLastErrorEqual(self, test_error: str):
         self.assertKoakLastEqual(None, test_error, Stream.STDERR)
