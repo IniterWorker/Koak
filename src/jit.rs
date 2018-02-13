@@ -54,7 +54,7 @@ impl JitModuleProvider {
     /// Closes the current modules and creates a new one, replacing the old one.
     /// The closed module is frozen so it can be executed later.
     ///
-    fn close_current_module(&mut self) {
+    pub fn close_current_module(&mut self) {
         let m = core::Module::new(&self.module_name);
         let pm = codegen::get_pass_manager(&m, self.optimization);
 
@@ -68,8 +68,9 @@ impl JitModuleProvider {
     ///
     /// Runs the given function in the current execution engine.
     ///
+    /// This function asserts the module containg the given function has been freezed.
+    ///
     pub fn run_function(&mut self, f: LLVMValueRef) -> f64 {
-        self.close_current_module();
         let f = unsafe { FunctionRef::from_ref(f) };
         let res = self.exec_engine.run_function(&f, Vec::new().as_mut_slice());
         res.to_float(&RealTypeRef::get_double())
