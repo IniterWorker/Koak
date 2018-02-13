@@ -68,6 +68,15 @@ impl Parser {
     }
 
     #[inline]
+    fn skip_until_semicolon(&mut self) {
+        while let Some(t) = self.tokens.pop() {
+            if let TokenType::SemiColon = t.token_type {
+                break
+            }
+        }
+    }
+
+    #[inline]
     fn parse_function_def(&mut self) -> Result<ASTNode, SyntaxError> {
         Ok(ASTNode::FuncDef(parse_func_def(self)?))
     }
@@ -80,8 +89,15 @@ impl Parser {
     #[inline]
     fn parse_toplevel_expr(&mut self) -> Result<ASTNode, SyntaxError> {
         let expr = parse_expr(self)?;
-        Ok(ASTNode::TopLevelExpr(expr))
+
+        let colon = self.next_or(ErrorReason::MissingSemiColonAfterTopLevelExpr)?;
+        if let TokenType::SemiColon = colon.token_type { // Check for semi-colon
+            Ok(ASTNode::TopLevelExpr(expr))
+        } else {
+            Err(SyntaxError::from(&colon, ErrorReason::MissingSemiColonAfterTopLevelExpr))
+        }
     }
+
 }
 
 impl Iterator for Parser {
@@ -89,10 +105,21 @@ impl Iterator for Parser {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        match self.peek_type()? {
-            &TokenType::Def => Some(self.parse_function_def()),
-            &TokenType::Extern => Some(self.parse_extern_declaration()),
-            _ => Some(self.parse_toplevel_expr())
+        while let Some(&TokenType::SemiColon) = self.peek_type() { // Skip semi-colon
+            self.tokens.pop();
         }
+
+        let out = match self.peek_type()? {
+            &TokenType::Def => self.parse_function_def(),
+            &TokenType::Extern => self.parse_extern_declaration(),
+            _ => self.parse_toplevel_expr()
+        };
+
+        Some(out
+            .or_else(|e| { // Skip tokens until semi-colon, to avoid multiple errors
+                self.skip_until_semicolon();
+                Err(e)
+            })
+        )
     }
 }

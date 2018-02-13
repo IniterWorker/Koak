@@ -173,6 +173,7 @@ impl<'a> Iterator for Lexer<'a> {
                     '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' | '(' | ')' | ',' => {
                         Some(Ok(self.new_token(TokenType::Operator(c))))
                     },
+                    ';' => Some(Ok(self.new_token(TokenType::SemiColon))),
                     _ => Some(Err(self.new_syntaxerror(ErrorReason::UnknownChar(c))))
                 }
             },

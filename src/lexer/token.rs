@@ -12,6 +12,7 @@ pub enum TokenType {
     Operator(char),
     Identifier(Rc<String>),
     Number(f64),
+    SemiColon,
 
     Unknown,
 }
