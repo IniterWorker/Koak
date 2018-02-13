@@ -15,7 +15,7 @@ class DefinitionTest(JITCustomTestCase):
     """Test case utilisé pour tester les fonctions du module 'random'."""
 
     @pdg_if_fail
-    def test_choice(self):
+    def test_square_definition_25(self):
         self.stdin_append([
             "def square(x) x * x",
             "square(5)"
@@ -23,7 +23,7 @@ class DefinitionTest(JITCustomTestCase):
         self.assertKoakLastOutEqual("=> 25\n")
 
     @pdg_if_fail
-    def test_bug_fct_return(self):
+    def test_square_return_bug_1(self):
         self.stdin_append([
             "def square(x) x * x",
             "square(5)",
