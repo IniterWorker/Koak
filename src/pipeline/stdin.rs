@@ -82,9 +82,8 @@ impl<'a> StdinPipeline<'a> {
                         if let &ASTNode::TopLevelExpr(_) = r {
                             module_provider.close_current_module(); // Close current module and save expression
                             toplevel_exprs.push(i);
-                        } else {
-                            irs.push(i); // Append IR only when non-top level expression
                         }
+                        irs.push(i);
                     },
                     Err(se) => errors.push(se)
                 }

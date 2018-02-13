@@ -180,5 +180,3 @@ impl<'a> Iterator for Lexer<'a> {
         }
     }
 }
-
-
