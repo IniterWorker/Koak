@@ -9,3 +9,5 @@ Cargo.lock
 *.vim
 
 **/__pycache__
+
+mandelset.koak

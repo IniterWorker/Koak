@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::fmt;
 
+use llvm_sys::LLVMOpcode;
 use llvm_sys::LLVMRealPredicate::LLVMRealOLT;
 
 use iron_llvm::LLVMRef;
@@ -167,8 +168,14 @@ impl IRGenerator for Expr {
                     '*' => Ok(context.builder.build_fmul(lhs, rhs, "mulmp")),
                     '/' => Ok(context.builder.build_fdiv(lhs, rhs, "divtmp")),
                     '%' => Ok(context.builder.build_frem(lhs, rhs, "modtmp")),
-                    '<' => Ok(context.builder.build_fcmp(LLVMRealOLT, lhs, rhs, "cmptmp")),
-                    '>' => Ok(context.builder.build_fcmp(LLVMRealOLT, rhs, lhs, "cmptmp")),
+                    '<' => {
+                        let tmp = context.builder.build_fcmp(LLVMRealOLT, lhs, rhs, "cmptmp");
+                        Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
+                    },
+                    '>' => {
+                        let tmp = context.builder.build_fcmp(LLVMRealOLT, rhs, lhs, "cmptmp");
+                        Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
+                    },
                     _ => panic!("Unexpected binary operator \'{}\'.", op),
                 }
             }
@@ -187,4 +194,3 @@ impl IRGenerator for Expr {
         }
     }
 }
-
