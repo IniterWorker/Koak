@@ -184,7 +184,7 @@ class CustomTestCase(TestCase):
         self.assertKoakLastEqual(None, test_error, Stream.STDERR)
 
     def assertKoakLastOutEqual(self, test_out: str):
-        self.assertKoakLastEqual(None, test_out, Stream.STDERR)
+        self.assertKoakLastEqual(None, test_out, Stream.STDOUT)
 
     def runKoak(self):
         if not self.run:
