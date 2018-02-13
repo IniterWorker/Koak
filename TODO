@@ -1,4 +1,0 @@
-- Fixer le bug du JIT quand on def deux fonctions identiques dans deux submodules différents
-- Ajouter les ez features genre ';'
-
-- Ajouter une moulinette et des tests pour s'assurer de pas perdre des features (ce serait dommage)
