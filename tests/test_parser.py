@@ -60,6 +60,27 @@ class UnaryOperatorTest(ParserCustomTestCase):
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
+    def test_complex_pos_neg(self):
+        self.stdin_append("1+-+-+-+-+-+1;")
+        self.stdout_expected("TopLevelExpr("
+                             "Binary(Add, Number(1.0), "
+                             "Unary(Sub, "
+                             "Unary(Add, "
+                             "Unary(Sub, "
+                             "Unary(Add, "
+                             "Unary(Sub, "
+                             "Unary(Add, "
+                             "Unary(Sub, "
+                             "Unary(Add, "
+                             "Unary(Sub, "
+                             "Unary(Add, "
+                             "Number(1.0)"
+                             "))))))))))"
+                             ")"
+                             ")")
+        self.assertKoakListEqual()
+        self.assertKoakZeroError()
+
 
 class DelimiterTest(ParserCustomTestCase):
     """

@@ -45,6 +45,15 @@ class DefinitionTest(JITCustomTestCase):
         self.assertKoakListEqual()
 
 
+class UnaryOperatorTest(JITCustomTestCase):
+
+    def test_neg_to_pos(self):
+        self.stdin_append([
+            "----1;"
+        ])
+        self.assertKoakLastOutEqual("=> 1\n")
+
+
 if __name__ == "__main__":
     TextTestRunner.resultclass = ColorTextTestResult
     main(module=None, testRunner=TextTestRunner())
