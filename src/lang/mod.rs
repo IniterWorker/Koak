@@ -9,3 +9,4 @@ mod prototype;
 pub mod expr;
 pub mod func;
 pub mod extern_func;
+pub mod cond;

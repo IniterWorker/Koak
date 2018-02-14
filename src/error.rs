@@ -61,6 +61,8 @@ pub enum ErrorReason {
     MissingSemiColonAfterExtern,
     MissingSemiColonAfterDef,
     MissingSemiColonAfterTopLevelExpr,
+    ThenTokenExpected,
+    ElseTokenExpected,
 }
 
 ///
@@ -99,6 +101,10 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Missing semi-colon at the end of a function definition"),
             &ErrorReason::MissingSemiColonAfterTopLevelExpr =>
                 write!(f, "Missing semi-colon at the end of a top-level expression"),
+            &ErrorReason::ThenTokenExpected =>
+                write!(f, "\"{}\" is expected after an \"{}\"", purple!("then"), purple!("if")),
+            &ErrorReason::ElseTokenExpected =>
+                write!(f, "\"{}\" is expected after a \"{}\"", purple!("else"), purple!("then")),
         }
     }
 }
