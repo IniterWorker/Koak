@@ -45,6 +45,10 @@ def process_input_list_from_file(input_list: list, args=None) -> (list, list):
     return list_out, list_err
 
 
+def safe_len(o: list) -> int:
+    return 0 if o is None else len(o)
+
+
 def pdg_if_fail(function):
     # noinspection PyArgumentList
     """
@@ -52,17 +56,18 @@ def pdg_if_fail(function):
     :param function:
     :return:
     """
+
     def wrapper(self):
         try:
             function(self)
         except AssertionError as e:
             self.std_debug_display()
             raise e
+
     return wrapper
 
 
 class CustomTestCase(TestCase):
-
     logging.basicConfig()
     log = logging.getLogger("LOG")
 
@@ -117,7 +122,6 @@ class CustomTestCase(TestCase):
     def std_debug_display(self):
         pass
 
-
     def debug(self):
         super().debug()
 
@@ -144,13 +148,15 @@ class CustomTestCase(TestCase):
                 and (stream_check is Stream.STDOUT_AND_STDERR
                      or stream_check is Stream.STDOUT):
             self.assertNotEqual(None, lout)
-            self.assertEqual(True, str(lout).__contains__(test_out), msg="Last line stdout must contain: " + str(test_out))
+            self.assertEqual(True, str(lout).__contains__(test_out),
+                             msg="Last line stdout must contain: " + str(test_out))
 
         if test_error is not None \
                 and (stream_check is Stream.STDOUT_AND_STDERR
                      or stream_check is Stream.STDERR):
             self.assertNotEqual(None, lerr)
-            self.assertEqual(True, str(lerr).__contains__(test_error),  msg="Last line stdout must contain: " + str(test_error))
+            self.assertEqual(True, str(lerr).__contains__(test_error),
+                             msg="Last line stdout must contain: " + str(test_error))
 
     def assertKoakLastErrorContain(self, test_error: str):
         self.assertKoakLastContain(None, test_error, Stream.STDERR)
@@ -181,11 +187,11 @@ class CustomTestCase(TestCase):
         trace = "\n\n"
         trace += "Koak trace (stdin, stdout, stderr) :\n"
         trace += "STDIN >\n"
-        trace += "".join(map(lambda x: padding + x, self.list_stdin)) + "\n"
+        trace += "".join(map(lambda x: padding + x, self.list_stdin)) + "\n" if self.list_stdin is not None else "\n"
         trace += "STDOUT >\n"
-        trace += "".join(map(lambda x: padding + x, self.list_stdout)) + "\n"
+        trace += "".join(map(lambda x: padding + x, self.list_stdout)) + "\n" if self.list_stdout is not None else "\n"
         trace += "STDERR >\n"
-        trace += "".join(map(lambda x: padding + x, self.list_stderr)) + "\n"
+        trace += "".join(map(lambda x: padding + x, self.list_stderr)) + "\n" if self.list_stderr is not None else "\n"
         return trace
 
     def _formatMessage(self, msg, standardMsg):
@@ -200,22 +206,21 @@ class CustomTestCase(TestCase):
         self.assertKoakLastEqual(None, test_out, Stream.STDOUT)
 
     def assertKoakZeroError(self):
-        self.runKoak()
-        self.assertEqual(0,
-                         len(self.list_stderr),
-                         msg="No output in stderr is required !\nCurrent list errors:\n{0}".format(str(self.list_stderr)))
+        outs, errs = self.runKoak()
+        self.assertEqual(True,
+                         safe_len(errs) == 0,
+                         msg="No output in stderr is required !\nCurrent list errors:\n{0}".format(
+                             str(errs)))
 
     def assertKoakNeedError(self):
-        self.runKoak()
-        self.assertEqual(1,
-                         len(self.list_stderr) > 0,
-                         msg="No output in stderr is required !\nCurrent list errors:\n{0}".format(str(self.list_stderr)))
+        outs, errs = self.runKoak()
+        self.assertEqual(True,
+                         safe_len(errs) > 0,
+                         msg="No output in stderr is required !\nCurrent list errors:\n{0}".format(
+                             str(errs)))
 
     def runKoak(self):
-        if not self.run:
-            self.list_stdout, self.list_stderr, _, _ = self.process_input_test(self.list_stdin, self.list_args, self.input_type)
-        outs = self.list_stdout
-        errs = self.list_stderr
+        outs, errs, _, _ = self.process_input_test(self.list_stdin, self.list_args, self.input_type)
         return outs, errs
 
     def process_input_list_from_pipe(self, input_list: list, args=None) -> (list, list):
@@ -284,9 +289,3 @@ class CustomTestCase(TestCase):
     def assert_both_last_elements(self, l1: list, l2: list) -> (object, object):
         a, b = last(l1), last(l2)
         self.assertEqual(False, a is None or b is None)
-
-
-
-
-
-

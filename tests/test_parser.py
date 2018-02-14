@@ -1,6 +1,6 @@
 from unittest import main
 
-from custom_test_case import CustomTestCase, pdg_if_fail
+from custom_test_case import CustomTestCase
 
 
 class ParserCustomTestCase(CustomTestCase):
@@ -44,13 +44,19 @@ class UnaryOperatorTest(ParserCustomTestCase):
 
     def test_basic_neg(self):
         self.stdin_append("-1;")
-        self.stdout_expected("TopLevelExpr(Number(1.0))")
+        self.stdout_expected("TopLevelExpr(Unary(Sub, Number(1.0)))")
+        self.assertKoakListEqual()
+        self.assertKoakZeroError()
+
+    def test_basic_neg_chained(self):
+        self.stdin_append("--1;")
+        self.stdout_expected("TopLevelExpr(Unary(Sub, Unary(Sub, Number(1.0))))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_basic_pos(self):
         self.stdin_append("+1;")
-        self.stdout_expected("TopLevelExpr(Number(1.0))")
+        self.stdout_expected("TopLevelExpr(Unary(Add, Number(1.0)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
@@ -92,49 +98,49 @@ class BinOperatorTest(ParserCustomTestCase):
 
     def test_basic_1(self):
         self.stdin_append("1 + 2;")
-        self.stdout_expected("TopLevelExpr(Binary('+', Number(1.0), Number(2.0)))")
+        self.stdout_expected("TopLevelExpr(Binary(Add, Number(1.0), Number(2.0)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_basic_div(self):
         self.stdin_append("1 / 2;")
-        self.stdout_expected("TopLevelExpr(Binary('/', Number(1.0), Number(2.0)))")
+        self.stdout_expected("TopLevelExpr(Binary(Div, Number(1.0), Number(2.0)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_basic_mul(self):
         self.stdin_append("1 * 2;")
-        self.stdout_expected("TopLevelExpr(Binary('*', Number(1.0), Number(2.0)))")
+        self.stdout_expected("TopLevelExpr(Binary(Mul, Number(1.0), Number(2.0)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_basic_mod(self):
         self.stdin_append("1 % 2;")
-        self.stdout_expected("TopLevelExpr(Binary('%', Number(1.0), Number(2.0)))")
+        self.stdout_expected("TopLevelExpr(Binary(Rem, Number(1.0), Number(2.0)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_priority_basic_neg(self):
         self.stdin_append("1 % 2 * 3;")
-        self.stdout_expected("TopLevelExpr(Binary('*', Binary('%', Number(1.0), Number(2.0)), Number(3.0)))")
+        self.stdout_expected("TopLevelExpr(Binary(Mul, Binary(Rem, Number(1.0), Number(2.0)), Number(3.0)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_priority_basic_add_div(self):
         self.stdin_append("1 + 2 / 3;")
-        self.stdout_expected("TopLevelExpr(Binary('+', Number(1.0), Binary('/', Number(2.0), Number(3.0))))")
+        self.stdout_expected("TopLevelExpr(Binary(Add, Number(1.0), Binary(Div, Number(2.0), Number(3.0))))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_priority_basic_modulo_mul(self):
         self.stdin_append("1 % 2 * 3;")
-        self.stdout_expected("TopLevelExpr(Binary('*', Binary('%', Number(1.0), Number(2.0)), Number(3.0)))")
+        self.stdout_expected("TopLevelExpr(Binary(Mul, Binary(Rem, Number(1.0), Number(2.0)), Number(3.0)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_priority_modulo_mul(self):
         self.stdin_append("1 % 2 * 3;")
-        self.stdout_expected("TopLevelExpr(Binary('*', Binary('%', Number(1.0), Number(2.0)), Number(3.0)))")
+        self.stdout_expected("TopLevelExpr(Binary(Mul, Binary(Rem, Number(1.0), Number(2.0)), Number(3.0)))")
         self.assertKoakListEqual()
 
 

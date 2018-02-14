@@ -1,6 +1,6 @@
 from unittest import main
 
-from custom_test_case import CustomTestCase, InputType, pdg_if_fail
+from custom_test_case import CustomTestCase
 
 
 class CustomLexerTestCase(CustomTestCase):
