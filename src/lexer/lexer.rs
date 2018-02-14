@@ -153,6 +153,9 @@ impl<'a> Lexer<'a> {
         match s.as_ref() {
             "def" => Ok(self.new_token(TokenType::Def)),
             "extern" => Ok(self.new_token(TokenType::Extern)),
+            "if" => Ok(self.new_token(TokenType::If)),
+            "then" => Ok(self.new_token(TokenType::Then)),
+            "else" => Ok(self.new_token(TokenType::Else)),
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
         }
     }

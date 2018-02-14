@@ -11,6 +11,9 @@ use super::OperatorType;
 pub enum TokenType {
     Def,
     Extern,
+    If,
+    Then,
+    Else,
     Operator(OperatorType),
     Identifier(Rc<String>),
     Number(f64),

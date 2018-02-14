@@ -16,6 +16,7 @@ use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
+use lang::cond::{Cond, parse_cond};
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -36,6 +37,7 @@ pub enum ExprType {
     Unary(OperatorType, Box<Expr>),
     Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
     Call(Rc<String>, Vec<Expr>), // Name, args
+    Condition(Box<Cond>),
 }
 
 #[derive(Clone)]
@@ -139,6 +141,7 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
                 _ => Ok(Expr::new(expr, ExprType::Variable(identifier))),
             }
         },
+        TokenType::If => Ok(Expr::new(expr, ExprType::Condition(Box::new(parse_cond(parser)?)))),
         _ => Err(SyntaxError::from(&expr, ErrorReason::ExprExpected)),
     }
 }
@@ -212,6 +215,7 @@ impl IRGenerator for Expr {
                     Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.count_params() as usize, args.len())))
                 }
             },
+            ExprType::Condition(ref cond) => cond.gen_ir(context, module_provider)
         }
     }
 }
