@@ -144,5 +144,41 @@ class BinOperatorTest(ParserCustomTestCase):
         self.assertKoakListEqual()
 
 
+class CommentTest(ParserCustomTestCase):
+    """
+    CommentTest usage
+    """
+
+    def test_one_comment(self):
+        self.stdin_append("# comment")
+        self.assertKoakZeroAll()
+
+    def test_one_comment_2(self):
+        self.stdin_append("#comment")
+        self.assertKoakZeroAll()
+
+    def test_multiple_ht(self):
+        self.stdin_append("### comment")
+        self.assertKoakZeroAll()
+
+    def test_comment_in_expression(self):
+        self.stdin_append("1 + 2; #comment")
+        self.assertKoakZeroError()
+
+    def test_comment_catch_delimiter(self):
+        self.stdin_append("1 + 2 # comment ;")
+        self.assertKoakLastErrorContain("Missing semi-colon")
+
+    def test_multiline_comment(self):
+        self.stdin_append([
+            "# One comment"
+            "# One comment"
+            "# One comment"
+            "# One comment"
+            "# One comment"
+        ])
+        self.assertKoakZeroError()
+
+
 if __name__ == "__main__":
     main()

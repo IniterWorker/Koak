@@ -212,6 +212,17 @@ class CustomTestCase(TestCase):
                          msg="No output in stderr is required !\nCurrent list errors:\n{0}".format(
                              str(errs)))
 
+    def assertKoakZeroOut(self):
+        outs, errs = self.runKoak()
+        self.assertEqual(True,
+                         safe_len(outs) == 0,
+                         msg="No output in stdout is required !\nCurrent list outs:\n{0}".format(
+                             str(errs)))
+
+    def assertKoakZeroAll(self):
+        self.assertKoakZeroError()
+        self.assertKoakZeroOut()
+
     def assertKoakNeedError(self):
         outs, errs = self.runKoak()
         self.assertEqual(True,
