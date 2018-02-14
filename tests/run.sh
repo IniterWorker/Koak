@@ -2,6 +2,6 @@
 
 TEST=$(dirname "$0")/
 
-pushd $TEST
+pushd $TEST > /dev/null
 python3 -m unittestcolor discover -s . -t . -p "test_*"
-popd
+popd > /dev/null
