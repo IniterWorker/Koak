@@ -66,7 +66,6 @@ class CustomTestCase(TestCase):
         super().__init__(methodName)
 
     def setUp(self):
-        print("[Before] " + self._testMethodName + ": clean env...")
         self.init()
 
     def init(self):

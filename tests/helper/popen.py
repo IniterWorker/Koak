@@ -36,7 +36,6 @@ def popen_koakfile_with_lines(lines: list, args=None):
     if args is None:
         args = []
     filename = "/tmp/" + str(uuid.uuid4()) + ".tmp"
-    print(lines)
     with open(filename, 'w') as tmp:
         for line in lines:
             tmp.write(line + "\n")
