@@ -16,17 +16,14 @@ class UnknownCharTest(CustomLexerTestCase):
     Test basic unknown char in the context
     """
 
-    @pdg_if_fail
     def test_Unknown_char_1(self):
         self.stdin_append("'")
         self.assertKoakLastErrorContain("Unknown char '''")
 
-    @pdg_if_fail
     def test_Unknown_char_2(self):
         self.stdin_append("def x(&) x * x")
         self.assertKoakLastErrorContain("Unknown char '&'")
 
-    @pdg_if_fail
     def test_Top_Level_Tokens(self):
         self.stdin_append("def x(&) x * x")
         self.assertKoakLastErrorContain("Unknown char '&'")
@@ -38,7 +35,6 @@ class KeywordsTest(CustomLexerTestCase):
     Test basic keyword
     """
 
-    @pdg_if_fail
     def test_Similar_to_keywords_tokens(self):
         self.stdin_append("externa bdef")
         self.stdout_expected([
@@ -54,7 +50,6 @@ class DelimiterTest(CustomLexerTestCase):
     Test basic linear expression
     """
 
-    @pdg_if_fail
     def test_delimiter_only(self):
         self.stdin_append(";")
         self.stdout_expected([
@@ -63,7 +58,6 @@ class DelimiterTest(CustomLexerTestCase):
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
-    @pdg_if_fail
     def test_delimiter_multiple_empty(self):
         self.stdin_append(";;;")
         self.stdout_expected([

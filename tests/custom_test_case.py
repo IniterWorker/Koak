@@ -1,5 +1,6 @@
 from enum import Enum, unique, auto
-from unittest import TestCase, main
+import logging
+from unittest import TestCase, main, TestResult
 
 from helper.formater import extract_lines_from_std, last
 from helper.popen import *
@@ -62,6 +63,9 @@ def pdg_if_fail(function):
 
 class CustomTestCase(TestCase):
 
+    logging.basicConfig()
+    log = logging.getLogger("LOG")
+
     def __init__(self, methodName='runTest'):
         super().__init__(methodName)
 
@@ -111,18 +115,11 @@ class CustomTestCase(TestCase):
         self.std_append(self.list_stdin, lines, endline)
 
     def std_debug_display(self):
-        print("===================================DEBUG========================================")
-        print("= TEST NAME: " + self._testMethodName)
-        print("|= STDIN =>")
-        [print(line, end="") for line in self.list_stdin] if self.list_stdin is not None else print("None")
-        print(">= STDIN =|")
-        print("|= STDOUT =>")
-        [print(line, end="") for line in self.list_stdout] if self.list_stdout is not None else print("None")
-        print(">= STDOUT =|")
-        print("|= STDERR =>")
-        [print(line, end="") for line in self.list_stderr] if self.list_stderr is not None else print("None")
-        print(">= STDERR =|")
-        print("=================================END DEBUG======================================")
+        pass
+
+
+    def debug(self):
+        super().debug()
 
     def assertKoakListEqual(self, stream_check: Stream = Stream.STDOUT_AND_STDERR):
         outs, errs = self.runKoak()
@@ -178,6 +175,21 @@ class CustomTestCase(TestCase):
                      or stream_check is Stream.STDERR):
             self.assertNotEqual(None, lerr)
             self.assertEqual(test_error, str(lerr))
+
+    def _trace_custom(self) -> str:
+        padding = "  "
+        trace = "\n\n"
+        trace += "Koak trace (stdin, stdout, stderr) :\n"
+        trace += "STDIN >\n"
+        trace += "".join(map(lambda x: padding + x, self.list_stdin)) + "\n"
+        trace += "STDOUT >\n"
+        trace += "".join(map(lambda x: padding + x, self.list_stdout)) + "\n"
+        trace += "STDERR >\n"
+        trace += "".join(map(lambda x: padding + x, self.list_stderr)) + "\n"
+        return trace
+
+    def _formatMessage(self, msg, standardMsg):
+        return self._trace_custom() + "\n" + super()._formatMessage(msg, standardMsg)
 
     def assertKoakLastErrorEqual(self, test_error: str):
         self.runKoak()
@@ -272,3 +284,9 @@ class CustomTestCase(TestCase):
     def assert_both_last_elements(self, l1: list, l2: list) -> (object, object):
         a, b = last(l1), last(l2)
         self.assertEqual(False, a is None or b is None)
+
+
+
+
+
+

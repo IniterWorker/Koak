@@ -1,5 +1,6 @@
-from unittest import main
+from unittest import main, TestProgram, TextTestRunner
 
+from unittestcolor import ColorTextTestResult
 from custom_test_case import CustomTestCase, pdg_if_fail
 
 
@@ -34,4 +35,5 @@ class DefinitionTest(JITCustomTestCase):
 
 
 if __name__ == "__main__":
-    main()
+    TextTestRunner.resultclass = ColorTextTestResult
+    main(module=None, testRunner=TextTestRunner())
