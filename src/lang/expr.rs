@@ -33,6 +33,7 @@ lazy_static! {
 pub enum ExprType {
     Number(f64),
     Variable(Rc<String>),
+    Unary(OperatorType, Box<Expr>),
     Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
     Call(Rc<String>, Vec<Expr>), // Name, args
 }
@@ -87,7 +88,7 @@ fn parse_bin_rhs(parser: &mut Parser, i: i32, lhs: Expr) -> Result<Expr, SyntaxE
             } else {
                 let op = parser.tokens.pop().unwrap(); // Eat operator
                 parser.peek_or(ErrorReason::ExprExpected)?;
-                let rhs = parse_primary(parser)?;
+                let rhs = parse_unary(parser)?;
 
                 let rhs = {
                     match parser.peek_type() {
@@ -142,9 +143,21 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     }
 }
 
+fn parse_unary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
+    match parser.peek_type() {
+        Some(&TokenType::Operator(t @ OperatorType::Add))
+            | Some(&TokenType::Operator(t @ OperatorType::Sub))
+                => {
+                    let token = parser.tokens.pop().unwrap();
+                    Ok(Expr::new(token, ExprType::Unary(t, Box::new(parse_unary(parser)?))))
+                },
+        _ => parse_primary(parser),
+    }
+}
+
 #[inline]
 pub fn parse_expr(parser: &mut Parser) -> Result<Expr, SyntaxError> {
-    let expr = parse_primary(parser)?;
+    let expr = parse_unary(parser)?;
     parse_bin_rhs(parser, 0, expr)
 }
 
@@ -156,6 +169,16 @@ impl IRGenerator for Expr {
             ExprType::Variable(ref s) => match context.named_values.get(s.borrow() as &String) {
                 Some(value) => Ok(*value),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string())))
+            },
+            ExprType::Unary(ref op, ref rhs) => {
+                match op {
+                    &OperatorType::Add => rhs.gen_ir(context, module_provider),
+                    &OperatorType::Sub => {
+                        let rhs = rhs.gen_ir(context, module_provider)?;
+                        Ok(context.builder.build_fneg(rhs, "unaryneg"))
+                    }
+                    _ => unimplemented!(),
+                }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
                 let lhs = lhs.gen_ir(context, module_provider)?;
