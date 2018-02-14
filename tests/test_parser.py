@@ -90,6 +90,10 @@ class DelimiterTest(ParserCustomTestCase):
         self.stdin_append(";;;")
         self.assertKoakZeroError()
 
+    def test_function_missing_semicolon(self):
+        self.stdin_append("def fib(x) if x < 3 then 1 else fib(x - 1) + fib(x - 2)")
+        self.assertKoakLastErrorContain("Missing semi-colon")
+
 
 class BinOperatorTest(ParserCustomTestCase):
     """
@@ -178,6 +182,21 @@ class CommentTest(ParserCustomTestCase):
             "# One comment"
         ])
         self.assertKoakZeroError()
+
+
+class DefinitionTest(ParserCustomTestCase):
+
+    def test_def_fib(self):
+        self.stdin_append("def fib(x) if x < 3 then 1 else fib(x - 1) + fib(x - 2) ;")
+        self.stdout_expected("FuncDef(fib, [\"x\"], "
+                             "Condition(Binary(Less, Variable(\"x\"), Number(3.0)), "
+                             "Number(1.0), "  # return 1
+                             "Binary(Add, "  # compute big
+                             "Call(\"fib\", [Binary(Sub, Variable(\"x\"), Number(1.0))]), "
+                             "Call(\"fib\", [Binary(Sub, Variable(\"x\"), Number(2.0))])"
+                             ")))")
+        self.assertKoakZeroError()
+        self.assertKoakListEqual()
 
 
 if __name__ == "__main__":

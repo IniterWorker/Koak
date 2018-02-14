@@ -1,7 +1,7 @@
-from unittest import main, TestProgram, TextTestRunner
+from unittest import main, TextTestRunner
 
 from unittestcolor import ColorTextTestResult
-from custom_test_case import CustomTestCase, pdg_if_fail
+from custom_test_case import CustomTestCase
 
 
 class JITCustomTestCase(CustomTestCase):
@@ -13,9 +13,7 @@ class JITCustomTestCase(CustomTestCase):
 
 
 class DefinitionTest(JITCustomTestCase):
-    """Test case utilisé pour tester les fonctions du module 'random'."""
 
-    @pdg_if_fail
     def test_square_definition_25(self):
         self.stdin_append([
             "def square(x) x * x",
@@ -23,7 +21,6 @@ class DefinitionTest(JITCustomTestCase):
         ])
         self.assertKoakLastOutEqual("=> 25\n")
 
-    @pdg_if_fail
     def test_square_return_bug_1(self):
         self.stdin_append([
             "def square(x) x * x",
@@ -32,6 +29,20 @@ class DefinitionTest(JITCustomTestCase):
             "square(5)"
         ])
         self.assertKoakLastOutEqual("=> 25\n")
+
+    def test_fib_multiple(self):
+        self.stdin_append([
+            "def fib(x) if x < 3 then 1 else fib(x - 1) + fib(x - 2) ;"
+            "fib(2);fib(3);fib(4);fib(5);fib(6);"
+        ])
+        self.stdout_expected([
+            "=> 1",
+            "=> 2",
+            "=> 3",
+            "=> 5",
+            "=> 8",
+        ])
+        self.assertKoakListEqual()
 
 
 if __name__ == "__main__":
