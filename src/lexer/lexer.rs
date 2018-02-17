@@ -8,6 +8,7 @@ use std::str::Chars;
 
 use lexer::{Token, TokenType, OperatorType, LexerResult};
 use error::{SyntaxError, ErrorReason};
+use lang::Type;
 
 ///
 /// Iterator over chars used by the lexer
@@ -156,6 +157,7 @@ impl<'a> Lexer<'a> {
             "if" => Ok(self.new_token(TokenType::If)),
             "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
+            "double" => Ok(self.new_token(TokenType::Type(Type::Double))),
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
         }
     }
@@ -191,6 +193,7 @@ impl<'a> Iterator for Lexer<'a> {
                     ')' => Some(Ok(self.new_token(TokenType::CloseParenthesis))),
                     ',' => Some(Ok(self.new_token(TokenType::Comma))),
                     ';' => Some(Ok(self.new_token(TokenType::SemiColon))),
+                    ':' => Some(Ok(self.new_token(TokenType::Colon))),
                     '#' => { self.lex_comment(); self.next() },
                     _ => Some(Err(self.new_syntaxerror(ErrorReason::UnknownChar(c))))
                 }

@@ -89,7 +89,7 @@ impl IRModuleProvider for JitModuleProvider {
         &mut self.current_module
     }
 
-    fn get_function(&mut self, name: &str) -> Option<FunctionRef> {
+    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<FunctionRef> {
         // Search old modules first
         for module in self.compiled_modules.iter() {
             match module.get().get_function_by_name(name) {

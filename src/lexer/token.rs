@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::fmt;
 
 use super::OperatorType;
+use lang::Type;
 
 #[derive(Debug, Clone)]
 pub enum TokenType {
@@ -21,6 +22,8 @@ pub enum TokenType {
     CloseParenthesis,
     Comma,
     SemiColon,
+    Colon,
+    Type(Type),
 
     Unknown,
 }

@@ -6,17 +6,16 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::fmt;
 
-use llvm_sys::LLVMOpcode;
-use llvm_sys::LLVMRealPredicate::LLVMRealOLT;
-
 use iron_llvm::LLVMRef;
-use iron_llvm::core::value::{Function, RealConstRef, RealConstCtor};
+use iron_llvm::core::value::{RealConstRef, RealConstCtor};
+use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
 
 use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
-use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
+use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 use lang::cond::{Cond, parse_cond};
+use lang::Type;
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -164,55 +163,60 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     parse_bin_rhs(parser, 0, expr)
 }
 
-impl IRGenerator for Expr {
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
-        use std::borrow::Borrow;
+impl IRExprGenerator for Expr {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
         match self.expr_type {
-            ExprType::Number(n) => Ok(RealConstRef::get(&context.double_type, n).to_ref()),
-            ExprType::Variable(ref s) => match context.named_values.get(s.borrow() as &String) {
-                Some(value) => Ok(*value),
-                None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string())))
+            ExprType::Number(n) => Ok(Type::Double.new_value(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref())?), // TODO Improve Litterals
+            ExprType::Variable(ref s) => match context.get_var(s) {
+                Some(var) => Ok(var.value.clone_value()),
+                None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),
             },
             ExprType::Unary(ref op, ref rhs) => {
+                let val = rhs.gen_ir(context, module_provider)?;
+                let calc = val.as_calculable();
                 match op {
-                    &OperatorType::Add => rhs.gen_ir(context, module_provider),
-                    &OperatorType::Sub => {
-                        let rhs = rhs.gen_ir(context, module_provider)?;
-                        Ok(context.builder.build_fneg(rhs, "unaryneg"))
-                    }
+                    &OperatorType::Add => calc.unary_plus(context, &rhs.token),
+                    &OperatorType::Sub => calc.unary_minus(context, &rhs.token),
                     _ => unimplemented!(),
                 }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
+                use std::borrow::Borrow;
+
                 let lhs = lhs.gen_ir(context, module_provider)?;
                 let rhs = rhs.gen_ir(context, module_provider)?;
+                let lhs_calc = lhs.as_calculable();
                 match op {
-                    &OperatorType::Add => Ok(context.builder.build_fadd(lhs, rhs, "addtmp")),
-                    &OperatorType::Sub => Ok(context.builder.build_fsub(lhs, rhs, "subtmp")),
-                    &OperatorType::Mul => Ok(context.builder.build_fmul(lhs, rhs, "mulmp")),
-                    &OperatorType::Div => Ok(context.builder.build_fdiv(lhs, rhs, "divtmp")),
-                    &OperatorType::Rem => Ok(context.builder.build_frem(lhs, rhs, "modtmp")),
-                    &OperatorType::Less => {
-                        let tmp = context.builder.build_fcmp(LLVMRealOLT, lhs, rhs, "cmptmp");
-                        Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
-                    },
-                    &OperatorType::More => {
-                        let tmp = context.builder.build_fcmp(LLVMRealOLT, rhs, lhs, "cmptmp");
-                        Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
-                    },
+                    &OperatorType::Add => lhs_calc.add(context, &self.token, rhs.borrow()),
+                    &OperatorType::Sub => lhs_calc.sub(context, &self.token, rhs.borrow()),
+                    &OperatorType::Mul => lhs_calc.mul(context, &self.token, rhs.borrow()),
+                    &OperatorType::Div => lhs_calc.div(context, &self.token, rhs.borrow()),
+                    &OperatorType::Rem => lhs_calc.rem(context, &self.token, rhs.borrow()),
+                    &OperatorType::Less => lhs_calc.less(context, &self.token, rhs.borrow()),
+                    &OperatorType::More => lhs_calc.more(context, &self.token, rhs.borrow()),
                     _ => panic!("Unimplemented binary operator \'{:?}\'.", op),
                 }
             }
             ExprType::Call(ref name, ref args) => {
-                let func = module_provider.get_function(name).ok_or(SyntaxError::from(&self.token, ErrorReason::UndefinedFunction(name.to_string())))?;
-                if args.len() == func.count_params() as usize {
+                use std::borrow::Borrow;
+
+                // Get the abstract function corresponding to the given name
+                let func = (context.functions.get(name).ok_or(SyntaxError::from(&self.token, ErrorReason::UndefinedFunction(name.to_string())))?).clone();
+
+                // Validate arguments
+                if args.len() == func.args.len() as usize {
                     let mut args_value = Vec::new();
-                    for arg in args.iter() {
-                        args_value.push(arg.gen_ir(context, module_provider)?);
+                    for (arg, wanted_type) in args.iter().zip(func.args.iter()) {
+                        let res = arg.gen_ir(context, module_provider)?;
+                        if res.get_type() != wanted_type.ty {
+                            return Err(SyntaxError::from(&arg.token, ErrorReason::ArgWrongType(wanted_type.ty, res.get_type())));
+                        }
+                        args_value.push(res.as_llvm_ref());
                     }
-                    Ok(context.builder.build_call(func.to_ref(), args_value.as_mut_slice(), "calltmp"))
+                    let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap();
+                    Ok(func.ret.new_value(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))?)
                 } else {
-                    Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.count_params() as usize, args.len())))
+                    Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.args.len() as usize, args.len())))
                 }
             },
             ExprType::Condition(ref cond) => cond.gen_ir(context, module_provider)

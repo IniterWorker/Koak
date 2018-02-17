@@ -9,7 +9,8 @@ use libc;
 use ansi_term::Colour::*;
 
 use args::Args;
-use lexer::Token;
+use lexer::{Token, OperatorType};
+use lang::Type;
 
 ///
 /// Quick macro to enable colors if stderr is a tty
@@ -63,6 +64,12 @@ pub enum ErrorReason {
     MissingSemiColonAfterTopLevelExpr,
     ThenTokenExpected,
     ElseTokenExpected,
+    ArgTypeExpected,
+    RetTypeExpected,
+    InvalidType,
+    IfBodiesTypeDoesntMatch(Type, Type),
+    IncompatibleBinOp(OperatorType, Type, Type),
+    ArgWrongType(Type, Type),
 }
 
 ///
@@ -90,11 +97,11 @@ impl fmt::Display for ErrorReason {
             &ErrorReason::UndefinedFunction(ref s) =>
                 write!(f, "Undefined function \"{}\"", purple!(s)),
             &ErrorReason::WrongArgNumber(ref name, expected, given) =>
-                write!(f, "Wrong number of argument: The function \"{}\" expects {} argument(s), but {} are given.", purple!(name), expected, given),
+                write!(f, "Wrong number of argument: The function \"{}\" expects {} argument(s), but {} are given", purple!(name), expected, given),
             &ErrorReason::RedefinedFunc(ref name) =>
-                write!(f, "Redefinition of function \"{}\".", purple!(name)),
+                write!(f, "Redefinition of function \"{}\"", purple!(name)),
             &ErrorReason::RedefinedFuncWithDiffArgs(ref func) =>
-                write!(f, "Function \"{}\" redefined with different arguments.", purple!(func.to_string())),
+                write!(f, "Function \"{}\" redefined with different arguments", purple!(func.to_string())),
             &ErrorReason::MissingSemiColonAfterExtern =>
                 write!(f, "Missing semi-colon after an extern declaration"),
             &ErrorReason::MissingSemiColonAfterDef =>
@@ -105,6 +112,18 @@ impl fmt::Display for ErrorReason {
                 write!(f, "\"{}\" is expected after an \"{}\"", purple!("then"), purple!("if")),
             &ErrorReason::ElseTokenExpected =>
                 write!(f, "\"{}\" is expected after a \"{}\"", purple!("else"), purple!("then")),
+            &ErrorReason::ArgTypeExpected =>
+                write!(f, "Argument type is expected"),
+            &ErrorReason::RetTypeExpected =>
+                write!(f, "Return type is expected"),
+            &ErrorReason::InvalidType =>
+                write!(f, "Given type isn't valid"),
+            &ErrorReason::IfBodiesTypeDoesntMatch(ref a, ref b) =>
+                write!(f, "If bodies's type doesn't match. Got \"{}\" on one side, and \"{}\" on the other one.", purple!(a), purple!(b)),
+            &ErrorReason::IncompatibleBinOp(ref op, ref lhs, ref rhs) =>
+                write!(f, "Binary operator {} doesn't exist for type {} and {}", purple!(format!("{:?}", op)), purple!(lhs), purple!(rhs)),
+            &ErrorReason::ArgWrongType(ref given, ref expected) =>
+                write!(f, "Bad function argument's type: \"{}\" expected, \"{}\" given.", purple!(given), purple!(expected)),
         }
     }
 }

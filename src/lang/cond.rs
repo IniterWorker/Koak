@@ -5,16 +5,15 @@
 use std::fmt;
 
 use iron_llvm::{LLVMRef, LLVMRefCtor};
-use llvm_sys::LLVMRealPredicate;
 use iron_llvm::core::instruction::{PHINode, PHINodeRef};
-use iron_llvm::core::value::{Function, RealConstRef, RealConstCtor};
+use iron_llvm::core::value::Function;
 use iron_llvm::core::basic_block::*;
 
 use lexer::TokenType;
 use parser::Parser;
 use lang::expr::{Expr, parse_expr};
 use error::{SyntaxError, ErrorReason};
-use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
+use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 
 #[derive(Clone)]
 pub struct Cond {
@@ -60,14 +59,13 @@ pub fn parse_cond(parser: &mut Parser) -> Result<Cond, SyntaxError> {
     }
 }
 
-impl IRGenerator for Cond {
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
+impl IRExprGenerator for Cond {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
         // Calculate the condition
         let cond_expr = self.cond.gen_ir(context, module_provider)?;
 
         // Compare it to zero
-        let zero = RealConstRef::get(&context.double_type, 0.0);
-        let cond_val = context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, cond_expr, zero.to_ref(), "cond");
+        let cond_val = cond_expr.as_calculable().cmp_zero(context)?;
 
         // Generate the three new blocks
         let current_block = context.builder.get_insert_block();
@@ -77,7 +75,7 @@ impl IRGenerator for Cond {
         let mut merge_block = function.append_basic_block_in_context(&mut context.context, "merge");
 
         // Seperate the current_bloc in two
-        context.builder.build_cond_br(cond_val, &then_block, &else_block);
+        context.builder.build_cond_br(cond_val.as_llvm_ref(), &then_block, &else_block);
 
         // Fill 'then' block
         context.builder.position_at_end(&mut then_block);
@@ -93,13 +91,21 @@ impl IRGenerator for Cond {
 
         context.builder.position_at_end(&mut merge_block);
 
-        let mut phi = unsafe { // Set the return value depending on the branch taken
-            PHINodeRef::from_ref(context.builder.build_phi(context.double_type.to_ref(), "ifphi"))
+        // Ensure if and else return value matches
+        if then_value.get_type() != else_value.get_type() {
+            return Err(SyntaxError::from(&self.cond.token, ErrorReason::IfBodiesTypeDoesntMatch(then_value.get_type(), else_value.get_type())));
+        }
+
+        // Set the return value depdends on the branch taken
+        let phi_type = then_value.get_type();
+        let mut phi = unsafe {
+            PHINodeRef::from_ref(context.builder.build_phi(phi_type.as_llvm_ref(), "ifphi"))
         };
         phi.add_incoming(
-            vec![then_value, else_value].as_mut_slice(),
+            vec![then_value.as_llvm_ref(), else_value.as_llvm_ref()].as_mut_slice(),
             vec![then_end, else_end].as_mut_slice(),
         );
-        Ok(phi.to_ref())
+
+        Ok(phi_type.new_value(phi.to_ref())?)
     }
 }
