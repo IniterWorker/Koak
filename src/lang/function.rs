@@ -142,50 +142,33 @@ impl IRGenerator for ConcreteFunction {
 pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxError> { // TODO Change this to abstract function
     let iden = parser.next_or(ErrorReason::ExpectedFuncName)?;
     if let TokenType::Identifier(_) = iden.token_type {
-        let open = parser.next_or(ErrorReason::ExpectedOpenParenthesis)?;
-        match open.token_type {
-            TokenType::OpenParenthesis => {
+        parser.next_of(TokenType::OpenParenthesis, ErrorReason::ExpectedOpenParenthesis)?;
 
-                // Parse args
-                let mut args = Vec::new();
-                while let Some(&TokenType::Identifier(_)) = parser.peek_type() {
-                    let arg_token = parser.tokens.pop().unwrap();
-                    let arg_name = if let TokenType::Identifier(ref s) = arg_token.token_type { s.clone() } else { unreachable!() };
+        // Parse args
+        let mut args = Vec::new();
+        while let Some(&TokenType::Identifier(_)) = parser.peek_type() {
+            let arg_token = parser.tokens.pop().unwrap();
+            let arg_name = if let TokenType::Identifier(ref s) = arg_token.token_type { s.clone() } else { unreachable!() };
 
-                    // Parse argument type
-                    let colon = parser.next_or(ErrorReason::ArgTypeExpected)?;
-                    if let TokenType::Colon = colon.token_type {
-                        let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
-                        if let TokenType::Type(arg_type) = ty.token_type {
-                            args.push(ConcreteArg::new(arg_name, arg_token, arg_type));
-                        } else {
-                            return Err(SyntaxError::from(&ty, ErrorReason::InvalidType));
-                        }
-                    } else {
-                        return Err(SyntaxError::from(&colon, ErrorReason::ArgTypeExpected));
-                    }
-                }
+            // Parse argument type
+            parser.next_of(TokenType::Colon, ErrorReason::ArgTypeExpected)?;
 
-                let close = parser.next_or(ErrorReason::UnmatchedParenthesis)?;
-                match close.token_type {
-                    TokenType::CloseParenthesis => {
-                        let colon = parser.next_or(ErrorReason::RetTypeExpected)?;
-                        if let TokenType::Colon = colon.token_type {
-                            let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
-                            if let TokenType::Type(ret_type) = ty.token_type {
-                                let func_name = if let TokenType::Identifier(ref s) = iden.token_type { s.clone() } else { unreachable!() };
-                                Ok(ConcreteFunction::new(iden, func_name, args, ret_type, None))
-                            } else {
-                                return Err(SyntaxError::from(&ty, ErrorReason::InvalidType));
-                            }
-                        } else {
-                            return Err(SyntaxError::from(&colon, ErrorReason::RetTypeExpected));
-                        }
-                    }
-                    _ => Err(SyntaxError::from(&close, ErrorReason::ArgMustBeIdentifier))
-                }
-            },
-            _ => Err(SyntaxError::from(&open, ErrorReason::ExpectedOpenParenthesis))
+            let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
+            if let TokenType::Type(arg_type) = ty.token_type {
+                args.push(ConcreteArg::new(arg_name, arg_token, arg_type));
+            } else {
+                return Err(SyntaxError::from(&ty, ErrorReason::InvalidType));
+            }
+        }
+
+        parser.next_of(TokenType::CloseParenthesis, ErrorReason::UnmatchedParenthesis)?;
+        parser.next_of(TokenType::Colon, ErrorReason::UnmatchedParenthesis)?;
+        let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
+        if let TokenType::Type(ret_type) = ty.token_type {
+            let func_name = if let TokenType::Identifier(ref s) = iden.token_type { s.clone() } else { unreachable!() };
+            Ok(ConcreteFunction::new(iden, func_name, args, ret_type, None))
+        } else {
+            return Err(SyntaxError::from(&ty, ErrorReason::InvalidType));
         }
     } else {
         Err(SyntaxError::from(&iden, ErrorReason::ExpectedFuncName))
@@ -194,29 +177,21 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxEr
 
 #[inline]
 pub fn parse_extern_func(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxError> {
-    let ext = parser.tokens.pop().unwrap(); // Eat extern
+    parser.tokens.pop().unwrap(); // Eat extern
 
     let func = parse_prototype(parser)?;
-
-    if let Some(&TokenType::SemiColon) = parser.peek_type() { // Check for semi-colon
-        parser.tokens.pop();
-        Ok(func)
-    } else {
-        Err(SyntaxError::from(&ext, ErrorReason::MissingSemiColonAfterExtern))
-    }
+    parser.next_of(TokenType::SemiColon, ErrorReason::MissingSemiColonAfterExtern)?;
+    Ok(func)
 }
 
 #[inline]
 pub fn parse_func_def(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxError> {
-    let def = parser.tokens.pop().unwrap(); // Eat def
+    parser.tokens.pop().unwrap(); // Eat def
+
     let mut func = parse_prototype(parser)?;
     let content = parse_expr(parser)?;
 
-    if let Some(&TokenType::SemiColon) = parser.peek_type() { // Check for semi-colon
-        parser.tokens.pop();
-        func.body = Some(content);
-        Ok(func)
-    } else {
-        Err(SyntaxError::from(&def, ErrorReason::MissingSemiColonAfterDef))
-    }
+    parser.next_of(TokenType::SemiColon, ErrorReason::MissingSemiColonAfterExtern)?;
+    func.body = Some(content);
+    Ok(func)
 }

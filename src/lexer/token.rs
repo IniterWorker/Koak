@@ -8,7 +8,7 @@ use std::fmt;
 use super::OperatorType;
 use lang::Type;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Def,
     Extern,

@@ -45,7 +45,7 @@ macro_rules! green {
 /// Enum of all possible errors.
 ///
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ErrorReason {
     UnknownChar(char),
     InvalidLitteralNum(String),

@@ -73,6 +73,16 @@ impl Parser {
     }
 
     #[inline]
+    pub fn next_of(&mut self, ty: TokenType, er: ErrorReason) -> Result<Token, SyntaxError> {
+        let token = self.next_or(er.clone())?;
+        if token.token_type == ty {
+            Ok(token)
+        } else {
+            Err(SyntaxError::from(&token, er))
+        }
+    }
+
+    #[inline]
     pub fn peek_or(&self, er: ErrorReason) -> Result<&Token, SyntaxError> {
         self.tokens.last().ok_or(SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
     }

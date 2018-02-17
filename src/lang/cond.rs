@@ -42,21 +42,11 @@ impl fmt::Debug for Cond {
 
 pub fn parse_cond(parser: &mut Parser) -> Result<Cond, SyntaxError> {
     let cond = parse_expr(parser)?;
-    let then_tok = parser.next_or(ErrorReason::ThenTokenExpected)?;
-    match then_tok.token_type {
-        TokenType::Then => {
-            let then_body = parse_expr(parser)?;
-            let else_tok = parser.next_or(ErrorReason::ElseTokenExpected)?;
-            match else_tok.token_type {
-                TokenType::Else => {
-                    let else_body = parse_expr(parser)?;
-                    Ok(Cond::new(cond, then_body, else_body))
-                },
-                _ => Err(SyntaxError::from(&else_tok, ErrorReason::ElseTokenExpected)),
-            }
-        },
-        _ => Err(SyntaxError::from(&then_tok, ErrorReason::ThenTokenExpected)),
-    }
+    parser.next_of(TokenType::Then, ErrorReason::ThenTokenExpected)?;
+    let then_body = parse_expr(parser)?;
+    parser.next_of(TokenType::Else, ErrorReason::ElseTokenExpected)?;
+    let else_body = parse_expr(parser)?;
+    Ok(Cond::new(cond, then_body, else_body))
 }
 
 impl IRExprGenerator for Cond {
