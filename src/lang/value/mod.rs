@@ -5,8 +5,10 @@
 use llvm_sys::prelude::LLVMValueRef;
 
 mod double_val;
+mod int_val;
 
 pub use self::double_val::*;
+pub use self::int_val::*;
 
 use codegen::{IRContext, IRExprResult};
 use lexer::Token;

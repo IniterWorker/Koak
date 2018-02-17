@@ -7,15 +7,13 @@ use std::rc::Rc;
 use std::fmt;
 
 use iron_llvm::LLVMRef;
-use iron_llvm::core::value::{RealConstRef, RealConstCtor};
-use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
 
 use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 use lang::cond::{Cond, parse_cond};
-use lang::Type;
+use lang::value::{Value, IntValue, DoubleValue};
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -31,7 +29,8 @@ lazy_static! {
 
 #[derive(Debug, Clone)]
 pub enum ExprType {
-    Number(f64),
+    IntegerLitteral(i32),
+    DoubleLitteral(f64),
     Variable(Rc<String>),
     Unary(OperatorType, Box<Expr>),
     Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
@@ -115,7 +114,8 @@ fn parse_bin_rhs(parser: &mut Parser, i: i32, lhs: Expr) -> Result<Expr, SyntaxE
 fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     let expr = parser.next_or(ErrorReason::ExprExpected)?;
     match expr.token_type {
-        TokenType::Number(n) => Ok(Expr::new(expr, ExprType::Number(n))),
+        TokenType::DoubleLitteral(n) => Ok(Expr::new(expr, ExprType::DoubleLitteral(n))),
+        TokenType::IntegerLitteral(n) => Ok(Expr::new(expr, ExprType::IntegerLitteral(n))),
         TokenType::OpenParenthesis => {
             let expr = parse_expr(parser)?;
 
@@ -166,7 +166,8 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, SyntaxError> {
 impl IRExprGenerator for Expr {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
         match self.expr_type {
-            ExprType::Number(n) => Ok(Type::Double.new_value(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref())?), // TODO Improve Litterals
+            ExprType::IntegerLitteral(n) => Ok(n.into()),
+            ExprType::DoubleLitteral(n) => Ok(n.into()),
             ExprType::Variable(ref s) => match context.get_var(s) {
                 Some(var) => Ok(var.value.clone_value()),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),

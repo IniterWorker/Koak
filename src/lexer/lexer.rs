@@ -128,12 +128,12 @@ impl<'a> Lexer<'a> {
         // Convert string to number
         if is_double {
             match s.parse::<f64>().ok() {
-                Some(f) => Ok(self.new_token(TokenType::Number(f))),
+                Some(f) => Ok(self.new_token(TokenType::DoubleLitteral(f))),
                 _ => Err(self.new_syntaxerror(ErrorReason::InvalidLitteralNum(s))),
             }
         } else {
             match i32::from_str_radix(&s[base_len..], base).ok() {
-                Some(i) => Ok(self.new_token(TokenType::Number(i as f64))), // TODO FIXME Missing 'int' type
+                Some(i) => Ok(self.new_token(TokenType::IntegerLitteral(i))),
                 _ => Err(self.new_syntaxerror(ErrorReason::InvalidLitteralNum(s))),
             }
         }
@@ -158,6 +158,7 @@ impl<'a> Lexer<'a> {
             "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
             "double" => Ok(self.new_token(TokenType::Type(Type::Double))),
+            "int" => Ok(self.new_token(TokenType::Type(Type::Int))),
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
         }
     }

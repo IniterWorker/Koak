@@ -74,7 +74,7 @@ impl ConcreteFunction {
             name += "$"; // Prevent the name from being taken by a user-defined function
             NB_ANON += 1;
         }
-        ConcreteFunction::new(Token::new(), Rc::new(name), Vec::new(), Type::Double, Some(b)) // TODO Change this to an abstract type
+        ConcreteFunction::new(Token::new(), Rc::new(name), Vec::new(), Type::Int, Some(b)) // TODO Change this to an abstract type
     }
 }
 
@@ -112,7 +112,10 @@ impl IRGenerator for ConcreteFunction {
                 let mut params_type: Vec<LLVMTypeRef> = self.args.iter().map(|a| a.ty.as_llvm_ref()).collect();
 
                 let ret_ty = FunctionTypeRef::get(&self.ret.as_llvm_ref(), params_type.as_mut_slice(), false);
-                FunctionRef::new(&mut module_provider.get_module(), &self.name, &ret_ty)
+                let f = FunctionRef::new(&mut module_provider.get_module(), &self.name, &ret_ty);
+                use iron_llvm::core::Value;
+                f.dump();
+                f
             },
         };
 
@@ -144,6 +147,9 @@ impl IRGenerator for ConcreteFunction {
 
             // Return the last instruction
             context.builder.build_ret(&ret_val.as_llvm_ref());
+
+            use iron_llvm::core::Value;
+            func.dump();
 
             // Let LLVM Verify our function
             func.verify(LLVMAbortProcessAction);
