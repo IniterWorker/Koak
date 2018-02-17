@@ -13,7 +13,6 @@ use parser::Parser;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 use lang::cond::{Cond, parse_cond};
-use lang::value::{Value, IntValue, DoubleValue};
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
