@@ -70,6 +70,7 @@ pub enum ErrorReason {
     IfBodiesTypeDoesntMatch(Type, Type),
     IncompatibleBinOp(OperatorType, Type, Type),
     ArgWrongType(Type, Type),
+    ExpectedNextArgOrCloseParenthesis,
 }
 
 ///
@@ -124,6 +125,8 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Binary operator {} doesn't exist for type {} and {}", purple!(format!("{:?}", op)), purple!(lhs), purple!(rhs)),
             &ErrorReason::ArgWrongType(ref given, ref expected) =>
                 write!(f, "Bad function argument's type: \"{}\" expected, \"{}\" given.", purple!(given), purple!(expected)),
+            &ErrorReason::ExpectedNextArgOrCloseParenthesis =>
+                write!(f, "Expected next function's argument or a close parenthesis"),
         }
     }
 }

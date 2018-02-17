@@ -23,6 +23,7 @@ pub enum TokenType {
     Comma,
     SemiColon,
     Colon,
+    Arrow,
     Type(Type),
 
     Unknown,

@@ -2,6 +2,7 @@
 //! Koak's functions
 //!
 
+use std::fmt;
 use std::rc::Rc;
 
 use llvm_sys::prelude::LLVMTypeRef;
@@ -20,7 +21,6 @@ use codegen::{IRContext, IRModuleProvider, IRGenerator, IRResult, IRExprGenerato
 use error::{SyntaxError, ErrorReason};
 use lang::variable::Variable;
 
-#[derive(Debug)]
 pub struct ConcreteArg {
     pub name: Rc<String>,
     pub token: Token,
@@ -38,7 +38,12 @@ impl ConcreteArg {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Debug for ConcreteArg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{}: {}", self.name, self.ty)
+    }
+}
+
 pub struct ConcreteFunction {
     pub token: Token,
     pub name: Rc<String>,
@@ -70,6 +75,20 @@ impl ConcreteFunction {
             NB_ANON += 1;
         }
         ConcreteFunction::new(Token::new(), Rc::new(name), Vec::new(), Type::Double, Some(b)) // TODO Change this to an abstract type
+    }
+}
+
+impl fmt::Debug for ConcreteFunction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{} (", self.name)?;
+        for (pos, arg) in self.args.iter().enumerate() {
+            if pos == 0 {
+                write!(f, "{:?}", arg)?;
+            } else {
+                write!(f, ", {:?}", arg)?;
+            }
+        }
+        write!(f, ") -> {}", self.ret)
     }
 }
 
@@ -159,10 +178,17 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxEr
             } else {
                 return Err(SyntaxError::from(&ty, ErrorReason::InvalidType));
             }
+
+            // Try to eat comma
+            let t = parser.next_or(ErrorReason::ExpectedNextArgOrCloseParenthesis)?;
+            match t.token_type {
+                TokenType::Comma => continue,
+                TokenType::CloseParenthesis => break,
+                _ => return Err(SyntaxError::from(&t, ErrorReason::ExpectedNextArgOrCloseParenthesis)),
+            }
         }
 
-        parser.next_of(TokenType::CloseParenthesis, ErrorReason::UnmatchedParenthesis)?;
-        parser.next_of(TokenType::Colon, ErrorReason::UnmatchedParenthesis)?;
+        parser.next_of(TokenType::Arrow, ErrorReason::RetTypeExpected)?;
         let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
         if let TokenType::Type(ret_type) = ty.token_type {
             let func_name = if let TokenType::Identifier(ref s) = iden.token_type { s.clone() } else { unreachable!() };

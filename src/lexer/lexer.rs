@@ -163,17 +163,20 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_operators(&mut self, c: char) -> LexerResult {
-        let ty = match (c, self.chars.peek()) {
-            ('+', _) => OperatorType::Add,
-            ('-', _) => OperatorType::Sub,
-            ('*', _) => OperatorType::Mul,
-            ('/', _) => OperatorType::Div,
-            ('%', _) => OperatorType::Rem,
-            ('<', _) => OperatorType::Less,
-            ('>', _) => OperatorType::More,
+        match (c, self.chars.peek()) {
+            ('-', Some('>')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Arrow))
+            }
+            ('+', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Add))),
+            ('-', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Sub))),
+            ('*', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Mul))),
+            ('/', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Div))),
+            ('%', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Rem))),
+            ('<', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Less))),
+            ('>', _) => Ok(self.new_token(TokenType::Operator(OperatorType::More))),
             _ => unreachable!(),
-        };
-        Ok(self.new_token(TokenType::Operator(ty)))
+        }
     }
 }
 
