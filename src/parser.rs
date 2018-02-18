@@ -2,11 +2,12 @@
 //! Koak's parser
 //!
 
+use std::rc::Rc;
+
 use lexer::{Token, TokenType};
 use error::{SyntaxError, ErrorReason};
 use lang::expr::{Expr, parse_expr};
-use lang::func::{Func, parse_func_def};
-use lang::extern_func::{ExternFunc, parse_extern_func};
+use lang::function::{ConcreteFunction, parse_func_def, parse_extern_func};
 use codegen::{IRContext, IRGenerator, IRModuleProvider, IRResult};
 
 pub type ParserResult = Result<ASTNode, SyntaxError>;
@@ -16,8 +17,7 @@ pub type ParserResult = Result<ASTNode, SyntaxError>;
 ///
 #[derive(Debug)]
 pub enum ASTNode {
-    ExternProto(ExternFunc),
-    FuncDef(Func),
+    FunctionDef(Rc<ConcreteFunction>),
     TopLevelExpr(Expr),
 }
 
@@ -25,9 +25,19 @@ impl IRGenerator for ASTNode {
     #[inline]
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
         match self {
-            &ASTNode::ExternProto(ref proto) => proto.gen_ir(context, module_provider),
-            &ASTNode::FuncDef(ref func) => func.gen_ir(context, module_provider),
-            &ASTNode::TopLevelExpr(ref expr) => Func::new_anonymous((*expr).clone()).gen_ir(context, module_provider),
+            &ASTNode::FunctionDef(ref func) => {
+                context.push_scope();
+                context.functions.insert(func.name.clone(), func.clone());
+                let r = func.gen_ir(context, module_provider);
+                if r.is_err() {
+                    context.functions.remove(&*func.name);
+                }
+                context.pop_scope();
+                r
+            }
+            &ASTNode::TopLevelExpr(ref expr) => {
+                ConcreteFunction::new_anonymous((*expr).clone()).gen_ir(context, module_provider)
+            }
         }
     }
 }
@@ -63,6 +73,16 @@ impl Parser {
     }
 
     #[inline]
+    pub fn next_of(&mut self, ty: TokenType, er: ErrorReason) -> Result<Token, SyntaxError> {
+        let token = self.next_or(er.clone())?;
+        if token.token_type == ty {
+            Ok(token)
+        } else {
+            Err(SyntaxError::from(&token, er))
+        }
+    }
+
+    #[inline]
     pub fn peek_or(&self, er: ErrorReason) -> Result<&Token, SyntaxError> {
         self.tokens.last().ok_or(SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
     }
@@ -78,12 +98,12 @@ impl Parser {
 
     #[inline]
     fn parse_function_def(&mut self) -> Result<ASTNode, SyntaxError> {
-        Ok(ASTNode::FuncDef(parse_func_def(self)?))
+        Ok(ASTNode::FunctionDef(Rc::new(parse_func_def(self)?)))
     }
 
     #[inline]
     fn parse_extern_declaration(&mut self) -> Result<ASTNode, SyntaxError> {
-        Ok(ASTNode::ExternProto(parse_extern_func(self)?))
+        Ok(ASTNode::FunctionDef(Rc::new(parse_extern_func(self)?)))
     }
 
     #[inline]

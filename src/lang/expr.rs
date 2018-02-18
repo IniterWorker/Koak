@@ -1,22 +1,22 @@
 //!
-//! This module implements expressions, in all forms: variables, function calls, litteral numbers, calculations etc.
+//! This module implements expressions, in all forms: variables, function calls, Literal numbers, calculations etc.
 //!
 
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::fmt;
 
-use llvm_sys::LLVMOpcode;
-use llvm_sys::LLVMRealPredicate::LLVMRealOLT;
-
 use iron_llvm::LLVMRef;
-use iron_llvm::core::value::{Function, RealConstRef, RealConstCtor};
+use iron_llvm::core::types::{IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor};
+use iron_llvm::core::value::{IntConstRef, IntConstCtor, RealConstRef, RealConstCtor};
 
 use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 use lang::cond::{Cond, parse_cond};
+use lang::types::KoakCalculable;
+use lang::types;
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -32,7 +32,9 @@ lazy_static! {
 
 #[derive(Debug, Clone)]
 pub enum ExprType {
-    Number(f64),
+    BoolLiteral(bool),
+    IntegerLiteral(i32),
+    DoubleLiteral(f64),
     Variable(Rc<String>),
     Unary(OperatorType, Box<Expr>),
     Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
@@ -116,7 +118,10 @@ fn parse_bin_rhs(parser: &mut Parser, i: i32, lhs: Expr) -> Result<Expr, SyntaxE
 fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     let expr = parser.next_or(ErrorReason::ExprExpected)?;
     match expr.token_type {
-        TokenType::Number(n) => Ok(Expr::new(expr, ExprType::Number(n))),
+        TokenType::True => Ok(Expr::new(expr, ExprType::BoolLiteral(true))),
+        TokenType::False => Ok(Expr::new(expr, ExprType::BoolLiteral(false))),
+        TokenType::DoubleLiteral(n) => Ok(Expr::new(expr, ExprType::DoubleLiteral(n))),
+        TokenType::IntegerLiteral(n) => Ok(Expr::new(expr, ExprType::IntegerLiteral(n))),
         TokenType::OpenParenthesis => {
             let expr = parse_expr(parser)?;
 
@@ -166,20 +171,19 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, SyntaxError> {
 
 impl IRGenerator for Expr {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
-        use std::borrow::Borrow;
         match self.expr_type {
-            ExprType::Number(n) => Ok(RealConstRef::get(&context.double_type, n).to_ref()),
-            ExprType::Variable(ref s) => match context.named_values.get(s.borrow() as &String) {
-                Some(value) => Ok(*value),
-                None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string())))
+            ExprType::BoolLiteral(b) => Ok(IntConstRef::get(&IntTypeRef::get_int1(), b as u64, true).to_ref()),
+            ExprType::IntegerLiteral(n) => Ok(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref()),
+            ExprType::DoubleLiteral(n) => Ok(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref()),
+            ExprType::Variable(ref s) => match context.get_var(s) {
+                Some(var) => Ok(var),
+                None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),
             },
-            ExprType::Unary(ref op, ref rhs) => {
+            ExprType::Unary(ref op, ref expr) => {
+                let val = expr.gen_ir(context, module_provider)?;
                 match op {
-                    &OperatorType::Add => rhs.gen_ir(context, module_provider),
-                    &OperatorType::Sub => {
-                        let rhs = rhs.gen_ir(context, module_provider)?;
-                        Ok(context.builder.build_fneg(rhs, "unaryneg"))
-                    }
+                    &OperatorType::Add => Ok(val),
+                    &OperatorType::Sub => val.unary_not(context, &expr.token),
                     _ => unimplemented!(),
                 }
             },
@@ -187,32 +191,34 @@ impl IRGenerator for Expr {
                 let lhs = lhs.gen_ir(context, module_provider)?;
                 let rhs = rhs.gen_ir(context, module_provider)?;
                 match op {
-                    &OperatorType::Add => Ok(context.builder.build_fadd(lhs, rhs, "addtmp")),
-                    &OperatorType::Sub => Ok(context.builder.build_fsub(lhs, rhs, "subtmp")),
-                    &OperatorType::Mul => Ok(context.builder.build_fmul(lhs, rhs, "mulmp")),
-                    &OperatorType::Div => Ok(context.builder.build_fdiv(lhs, rhs, "divtmp")),
-                    &OperatorType::Rem => Ok(context.builder.build_frem(lhs, rhs, "modtmp")),
-                    &OperatorType::Less => {
-                        let tmp = context.builder.build_fcmp(LLVMRealOLT, lhs, rhs, "cmptmp");
-                        Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
-                    },
-                    &OperatorType::More => {
-                        let tmp = context.builder.build_fcmp(LLVMRealOLT, rhs, lhs, "cmptmp");
-                        Ok(context.builder.build_cast(LLVMOpcode::LLVMUIToFP, tmp, context.double_type.to_ref(), "casttmp"))
-                    },
-                    _ => panic!("Unimplemented binary operator \'{:?}\'.", op),
+                    &OperatorType::Add => KoakCalculable::add(&lhs, context, &self.token, rhs),
+                    &OperatorType::Sub => KoakCalculable::sub(&lhs, context, &self.token, rhs),
+                    &OperatorType::Mul => KoakCalculable::mul(&lhs, context, &self.token, rhs),
+                    &OperatorType::Div => KoakCalculable::div(&lhs, context, &self.token, rhs),
+                    &OperatorType::Rem => KoakCalculable::rem(&lhs, context, &self.token, rhs),
+                    &OperatorType::Less => KoakCalculable::lt(&lhs, context, &self.token, rhs),
+                    &OperatorType::More => KoakCalculable::gt(&lhs, context, &self.token, rhs),
+                    _ => unimplemented!(),
                 }
             }
             ExprType::Call(ref name, ref args) => {
-                let func = module_provider.get_function(name).ok_or(SyntaxError::from(&self.token, ErrorReason::UndefinedFunction(name.to_string())))?;
-                if args.len() == func.count_params() as usize {
+                use std::borrow::Borrow;
+
+                // Get the abstract function corresponding to the given name
+                let func = (context.functions.get(name).ok_or(SyntaxError::from(&self.token, ErrorReason::UndefinedFunction(name.to_string())))?).clone();
+
+                // Validate arguments
+                if args.len() == func.args.len() as usize {
                     let mut args_value = Vec::new();
-                    for arg in args.iter() {
-                        args_value.push(arg.gen_ir(context, module_provider)?);
+                    for (arg, wanted_type) in args.iter().zip(func.args.iter()) {
+                        let arg_val = arg.gen_ir(context, module_provider)?;
+                        let cast_arg = types::cast_to(&arg.token, arg_val, wanted_type.ty, context)?;
+                        args_value.push(cast_arg);
                     }
-                    Ok(context.builder.build_call(func.to_ref(), args_value.as_mut_slice(), "calltmp"))
+                    let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap();
+                    Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))
                 } else {
-                    Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.count_params() as usize, args.len())))
+                    Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.args.len() as usize, args.len())))
                 }
             },
             ExprType::Condition(ref cond) => cond.gen_ir(context, module_provider)

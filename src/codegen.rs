@@ -2,15 +2,16 @@
 //! Koak's IR generator
 //!
 
+use std::rc::Rc;
 use std::collections::HashMap;
 
 use llvm_sys::prelude::LLVMValueRef;
 
 use iron_llvm::core;
-use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
 use iron_llvm::core::value::FunctionRef;
 
 use error::SyntaxError;
+use lang::function::ConcreteFunction;
 
 ///
 /// Structure holding LLVM's stuff, used when generating IR code.
@@ -18,18 +19,43 @@ use error::SyntaxError;
 pub struct IRContext {
     pub context: core::Context,
     pub builder: core::Builder,
-    pub named_values: HashMap<String, LLVMValueRef>,
-    pub double_type: RealTypeRef,
+    pub functions: HashMap<Rc<String>, Rc<ConcreteFunction>>,
+    scopes: Vec<HashMap<Rc<String>, LLVMValueRef>>, // Vector of a map of local variables
 }
 
 impl IRContext {
+    #[inline]
     pub fn new() -> IRContext {
         IRContext {
             context: core::Context::get_global(),
             builder: core::Builder::new(),
-            named_values: HashMap::new(),
-            double_type: RealTypeRef::get_double(),
+            functions: HashMap::new(),
+            scopes: Vec::new(),
         }
+    }
+
+    pub fn get_var(&self, name: &String) -> Option<LLVMValueRef> {
+        for scope in self.scopes.iter().rev() {
+            if let r @ Some(_) = scope.get(name) {
+                return r.map(|x| *x);
+            }
+        }
+        None
+    }
+
+    #[inline]
+    pub fn add_var(&mut self, name: Rc<String>, val: LLVMValueRef) {
+        self.scopes.last_mut().unwrap().insert(name, val);
+    }
+
+    #[inline]
+    pub fn push_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    #[inline]
+    pub fn pop_scope(&mut self) {
+        self.scopes.pop();
     }
 }
 
@@ -37,6 +63,7 @@ impl IRContext {
 /// Trait that each language element must provide to generate their corresponding IR code.
 ///
 pub type IRResult = Result<LLVMValueRef, SyntaxError>;
+
 pub trait IRGenerator {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult;
 }
@@ -47,7 +74,7 @@ pub trait IRGenerator {
 pub trait IRModuleProvider {
     fn dump(&self);
     fn get_module(&mut self) -> &mut core::Module;
-    fn get_function(&mut self, name: &str) -> Option<FunctionRef>;
+    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<FunctionRef>;
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager;
 }
 
@@ -77,7 +104,7 @@ impl IRModuleProvider for SimpleModuleProvider {
         &mut self.module
     }
 
-    fn get_function(&mut self, name: &str) -> Option<FunctionRef> {
+    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<FunctionRef> {
         self.module.get_function_by_name(name)
     }
 

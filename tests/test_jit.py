@@ -16,17 +16,17 @@ class DefinitionTest(JITCustomTestCase):
 
     def test_square_definition_25(self):
         self.stdin_append([
-            "def square(x) x * x",
+            "def square(x: int) -> int x * x;",
             "square(5)"
         ])
         self.assertKoakLastOutEqual("=> 25\n")
 
     def test_square_return_bug_1(self):
         self.stdin_append([
-            "def square(x) x * x",
-            "square(5)",
-            "x = 1",
-            "square(5)"
+            "def square(x: int) -> int x * x;",
+            "square(5);",
+            "x = 1;",
+            "square(5);"
         ])
         self.assertKoakLastOutEqual("=> 25\n")
 

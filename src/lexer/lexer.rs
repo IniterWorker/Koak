@@ -97,7 +97,7 @@ impl<'a> Lexer<'a> {
         let mut base_len = 0;
         let mut is_double = false;
 
-        // Try to determine the base used in the litteral number
+        // Try to determine the base used in the Literal number
         if c == '0' {
             match self.chars.peek() {
                 Some(c @ 'x') | Some(c @ 'X') => {
@@ -127,13 +127,13 @@ impl<'a> Lexer<'a> {
         // Convert string to number
         if is_double {
             match s.parse::<f64>().ok() {
-                Some(f) => Ok(self.new_token(TokenType::Number(f))),
-                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLitteralNum(s))),
+                Some(f) => Ok(self.new_token(TokenType::DoubleLiteral(f))),
+                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLiteralNum(s))),
             }
         } else {
             match i32::from_str_radix(&s[base_len..], base).ok() {
-                Some(i) => Ok(self.new_token(TokenType::Number(i as f64))), // TODO FIXME Missing 'int' type
-                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLitteralNum(s))),
+                Some(i) => Ok(self.new_token(TokenType::IntegerLiteral(i))),
+                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLiteralNum(s))),
             }
         }
     }
@@ -156,22 +156,30 @@ impl<'a> Lexer<'a> {
             "if" => Ok(self.new_token(TokenType::If)),
             "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
+            "true" => Ok(self.new_token(TokenType::True)),
+            "false" => Ok(self.new_token(TokenType::False)),
+            "bool" => Ok(self.new_token(TokenType::Bool)),
+            "int" => Ok(self.new_token(TokenType::Int)),
+            "double" => Ok(self.new_token(TokenType::Double)),
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
         }
     }
 
     fn lex_operators(&mut self, c: char) -> LexerResult {
-        let ty = match (c, self.chars.peek()) {
-            ('+', _) => OperatorType::Add,
-            ('-', _) => OperatorType::Sub,
-            ('*', _) => OperatorType::Mul,
-            ('/', _) => OperatorType::Div,
-            ('%', _) => OperatorType::Rem,
-            ('<', _) => OperatorType::Less,
-            ('>', _) => OperatorType::More,
+        match (c, self.chars.peek()) {
+            ('-', Some('>')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Arrow))
+            }
+            ('+', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Add))),
+            ('-', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Sub))),
+            ('*', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Mul))),
+            ('/', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Div))),
+            ('%', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Rem))),
+            ('<', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Less))),
+            ('>', _) => Ok(self.new_token(TokenType::Operator(OperatorType::More))),
             _ => unreachable!(),
-        };
-        Ok(self.new_token(TokenType::Operator(ty)))
+        }
     }
 }
 
@@ -191,6 +199,7 @@ impl<'a> Iterator for Lexer<'a> {
                     ')' => Some(Ok(self.new_token(TokenType::CloseParenthesis))),
                     ',' => Some(Ok(self.new_token(TokenType::Comma))),
                     ';' => Some(Ok(self.new_token(TokenType::SemiColon))),
+                    ':' => Some(Ok(self.new_token(TokenType::Colon))),
                     '#' => { self.lex_comment(); self.next() },
                     _ => Some(Err(self.new_syntaxerror(ErrorReason::UnknownChar(c))))
                 }

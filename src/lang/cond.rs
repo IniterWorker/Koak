@@ -4,15 +4,18 @@
 
 use std::fmt;
 
+use llvm_sys::LLVMIntPredicate;
+
 use iron_llvm::{LLVMRef, LLVMRefCtor};
-use llvm_sys::LLVMRealPredicate;
+use iron_llvm::core::types::{IntTypeRef, IntTypeCtor};
 use iron_llvm::core::instruction::{PHINode, PHINodeRef};
-use iron_llvm::core::value::{Function, RealConstRef, RealConstCtor};
+use iron_llvm::core::value::{Value, Function, IntConstRef, IntConstCtor};
 use iron_llvm::core::basic_block::*;
 
 use lexer::TokenType;
 use parser::Parser;
 use lang::expr::{Expr, parse_expr};
+use lang::types;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 
@@ -43,21 +46,11 @@ impl fmt::Debug for Cond {
 
 pub fn parse_cond(parser: &mut Parser) -> Result<Cond, SyntaxError> {
     let cond = parse_expr(parser)?;
-    let then_tok = parser.next_or(ErrorReason::ThenTokenExpected)?;
-    match then_tok.token_type {
-        TokenType::Then => {
-            let then_body = parse_expr(parser)?;
-            let else_tok = parser.next_or(ErrorReason::ElseTokenExpected)?;
-            match else_tok.token_type {
-                TokenType::Else => {
-                    let else_body = parse_expr(parser)?;
-                    Ok(Cond::new(cond, then_body, else_body))
-                },
-                _ => Err(SyntaxError::from(&else_tok, ErrorReason::ElseTokenExpected)),
-            }
-        },
-        _ => Err(SyntaxError::from(&then_tok, ErrorReason::ThenTokenExpected)),
-    }
+    parser.next_of(TokenType::Then, ErrorReason::ThenTokenExpected)?;
+    let then_body = parse_expr(parser)?;
+    parser.next_of(TokenType::Else, ErrorReason::ElseTokenExpected)?;
+    let else_body = parse_expr(parser)?;
+    Ok(Cond::new(cond, then_body, else_body))
 }
 
 impl IRGenerator for Cond {
@@ -65,9 +58,12 @@ impl IRGenerator for Cond {
         // Calculate the condition
         let cond_expr = self.cond.gen_ir(context, module_provider)?;
 
+        // Cast it to bool
+        let bool_expr = types::cast_to(&self.cond.token, cond_expr, IntTypeRef::get_int1().to_ref(), context)?;
+
         // Compare it to zero
-        let zero = RealConstRef::get(&context.double_type, 0.0);
-        let cond_val = context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, cond_expr, zero.to_ref(), "cond");
+        let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();
+        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, bool_expr, zero, "cond");
 
         // Generate the three new blocks
         let current_block = context.builder.get_insert_block();
@@ -77,7 +73,7 @@ impl IRGenerator for Cond {
         let mut merge_block = function.append_basic_block_in_context(&mut context.context, "merge");
 
         // Seperate the current_bloc in two
-        context.builder.build_cond_br(cond_val, &then_block, &else_block);
+        context.builder.build_cond_br(cond_res, &then_block, &else_block);
 
         // Fill 'then' block
         context.builder.position_at_end(&mut then_block);
@@ -93,13 +89,21 @@ impl IRGenerator for Cond {
 
         context.builder.position_at_end(&mut merge_block);
 
-        let mut phi = unsafe { // Set the return value depending on the branch taken
-            PHINodeRef::from_ref(context.builder.build_phi(context.double_type.to_ref(), "ifphi"))
+        // Ensure if and else return value matches
+        if then_value.get_type() != else_value.get_type() {
+            return Err(SyntaxError::from(&self.cond.token, ErrorReason::IfBodiesTypeDoesntMatch(then_value.get_type(), else_value.get_type())));
+        }
+
+        // Set the return value depdends on the branch taken
+        let phi_type = then_value.get_type();
+        let mut phi = unsafe {
+            PHINodeRef::from_ref(context.builder.build_phi(phi_type, "ifphi"))
         };
         phi.add_incoming(
             vec![then_value, else_value].as_mut_slice(),
             vec![then_end, else_end].as_mut_slice(),
         );
+
         Ok(phi.to_ref())
     }
 }
