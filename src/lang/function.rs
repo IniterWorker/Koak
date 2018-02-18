@@ -176,14 +176,11 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxEr
             args.push(ConcreteArg::new(arg_name, arg_token, ty.as_llvm_type()?));
 
             // Try to eat comma
-            let t = parser.next_or(ErrorReason::ExpectedNextArgOrCloseParenthesis)?;
-            match t.token_type {
-                TokenType::Comma => continue,
-                TokenType::CloseParenthesis => break,
-                _ => return Err(SyntaxError::from(&t, ErrorReason::ExpectedNextArgOrCloseParenthesis)),
+            if let TokenType::Comma = parser.peek_or(ErrorReason::ExpectedNextArgOrCloseParenthesis)?.token_type {
+                parser.tokens.pop();
             }
         }
-
+        parser.next_of(TokenType::CloseParenthesis, ErrorReason::UnmatchedParenthesis)?;
         parser.next_of(TokenType::Arrow, ErrorReason::RetTypeExpected)?;
         let ret_type = parser.next_or(ErrorReason::ArgTypeExpected)?.as_llvm_type()?;
         Ok(ConcreteFunction::new(iden, func_name, args, ret_type, None))
