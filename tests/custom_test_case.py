@@ -23,28 +23,6 @@ class Stream(Enum):
     STDOUT_AND_STDERR = auto()
 
 
-def process_input_list_from_file(input_list: list, args=None) -> (list, list):
-    """
-    Basic unit test method with two list string without carriage return, from a file
-    :rtype: tuple(list, list)
-    :return: (list_out, list_err)
-    """
-
-    if args is None:
-        args = ["-l"]
-
-    p = popen_koakfile_with_lines(input_list, args)
-
-    p.wait()
-
-    stdout, stderr = p.communicate()
-
-    list_out = extract_lines_from_std(stdout.decode("ascii"))
-    list_err = extract_lines_from_std(stderr.decode("ascii"))
-
-    return list_out, list_err
-
-
 def safe_len(o: list) -> int:
     return 0 if o is None else len(o)
 
@@ -75,6 +53,10 @@ class CustomTestCase(TestCase):
         super().__init__(methodName)
 
     def setUp(self):
+        """
+        Run before each test to setup with self.init method.
+        :return:
+        """
         self.init()
 
     def init(self):
@@ -82,21 +64,43 @@ class CustomTestCase(TestCase):
         self.list_stdin = None
         self.list_stdout = None
         self.list_stderr = None
+        self.current_stdout = None
+        self.current_stderr = None
         self.input_type = InputType.FILE
         self.run = False
 
     def input_type_piped(self):
+        """
+        Set type Pipe
+        :return:
+        """
         self.input_type = InputType.PIPE
 
     def input_type_file(self):
+        """
+        Set type file
+        :return:
+        """
         self.input_type = InputType.FILE
 
     def set_list_args(self, args=None):
+        """
+        Set list args of Koak
+        :param args:
+        :return:
+        """
         if args is None:
             args = ["-t"]
         self.list_args = args
 
     def std_append(self, std: list, lines: object, endline: str = "\n"):
+        """
+        Append in list with additional strings list or string
+        :param std:
+        :param lines:
+        :param endline:
+        :return:
+        """
         if isinstance(lines, list):
             std += list(map((lambda line: line + endline), lines))
         elif isinstance(lines, str):
@@ -105,16 +109,31 @@ class CustomTestCase(TestCase):
             raise TypeError("std_append list or str")
 
     def stderr_expected(self, lines: object, endline: str = "\n"):
+        """
+        Append method to add expected output in stderr
+        :param lines:
+        :param endline:
+        """
         if self.list_stderr is None:
             self.list_stderr = []
         self.std_append(self.list_stderr, lines, endline)
 
     def stdout_expected(self, lines: object, endline: str = "\n"):
+        """
+        Append method to add expected output in stderr
+        :param lines:
+        :param endline:
+        """
         if self.list_stdout is None:
             self.list_stdout = []
         self.std_append(self.list_stdout, lines, endline)
 
     def stdin_append(self, lines: object, endline: str = "\n"):
+        """
+        Append method to add buffer in stdin
+        :param lines:
+        :param endline:
+        """
         if self.list_stdin is None:
             self.list_stdin = []
         self.std_append(self.list_stdin, lines, endline)
@@ -162,10 +181,10 @@ class CustomTestCase(TestCase):
         self.assertKoakLastContain(None, test_error, Stream.STDERR)
 
     def assertKoakLastOutContain(self, test_out: str):
-        self.assertKoakLastContain(None, test_out, Stream.STDERR)
+        self.assertKoakLastContain(test_out, None, Stream.STDERR)
 
     def assertKoakLastEqual(self, test_out: object, test_error: object,
-                            stream_check: Stream = Stream.STDOUT_AND_STDERR):
+                            stream_check: object = Stream.STDOUT_AND_STDERR) -> object:
         outs, errs = self.runKoak()
         lout = last(outs)
         lerr = last(errs)
@@ -189,12 +208,22 @@ class CustomTestCase(TestCase):
         trace += "STDIN >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stdin)) + "\n" if self.list_stdin is not None else "\n"
         trace += "STDOUT >\n"
+        trace += "".join(map(lambda x: padding + x, self.current_stdout)) + "\n" if self.current_stdout is not None else "\n"
+        trace += "STDOUT (expected) >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stdout)) + "\n" if self.list_stdout is not None else "\n"
         trace += "STDERR >\n"
+        trace += "".join(map(lambda x: padding + x, self.current_stderr)) + "\n" if self.current_stderr is not None else "\n"
+        trace += "STDERR (expected) >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stderr)) + "\n" if self.list_stderr is not None else "\n"
         return trace
 
     def _formatMessage(self, msg, standardMsg):
+        """
+        Adding additional pieces of information in debug stack
+        :param msg:
+        :param standardMsg:
+        :return: str
+        """
         return self._trace_custom() + "\n" + super()._formatMessage(msg, standardMsg)
 
     def assertKoakLastErrorEqual(self, test_error: str):
@@ -203,7 +232,7 @@ class CustomTestCase(TestCase):
 
     def assertKoakLastOutEqual(self, test_out: str):
         self.runKoak()
-        self.assertKoakLastEqual(None, test_out, Stream.STDOUT)
+        self.assertKoakLastEqual(test_out, None, Stream.STDOUT)
 
     def assertKoakZeroError(self):
         outs, errs = self.runKoak()
@@ -250,14 +279,44 @@ class CustomTestCase(TestCase):
 
         stdout, stderr = p.communicate()
 
-        list_out = extract_lines_from_std(stdout.decode("ascii"))
-        list_err = extract_lines_from_std(stderr.decode("ascii"))
+        # Cache
+        self.current_stderr = stderr.decode("ascii")
+        self.current_stdout = stdout.decode("ascii")
+
+        list_out = extract_lines_from_std(self.current_stdout)
+        list_err = extract_lines_from_std(self.current_stderr)
 
         return list_out, list_err
 
+    def process_input_list_from_file(self, input_list: list, args=None) -> (list, list):
+        """
+        Basic unit test method with two list string without carriage return, from a file
+        :rtype: tuple(list, list)
+        :return: (list_out, list_err)
+        """
+
+        if args is None:
+            args = ["-l"]
+
+        p = popen_koakfile_with_lines(input_list, args)
+
+        p.wait()
+
+        stdout, stderr = p.communicate()
+
+        # Cache
+        self.current_stderr = stderr.decode("ascii")
+        self.current_stdout = stdout.decode("ascii")
+
+        list_out = extract_lines_from_std(self.current_stdout)
+        list_err = extract_lines_from_std(self.current_stderr)
+
+        return list_out, list_err
+
+
     def process_input_list(self, input_list: list, args=None) -> (list, list, list, list):
         a, b = self.process_input_list_from_pipe(input_list, args)
-        c, d = process_input_list_from_file(input_list, args)
+        c, d = self.process_input_list_from_file(input_list, args)
         return a, b, c, d
 
     def process_input_test_from_file(self, input_list: list, args=None) -> (list, list, list, list):
@@ -267,7 +326,7 @@ class CustomTestCase(TestCase):
         :param args:
         :return: (list_out, list_err, last_out, last_err)
         """
-        list_out, list_err = process_input_list_from_file(input_list, args)
+        list_out, list_err = self.process_input_list_from_file(input_list, args)
         last_out, last_err = self.both_last_elements(list_out, list_err)
         return list_out, list_err, last_out, last_err
 
@@ -295,8 +354,20 @@ class CustomTestCase(TestCase):
             else self.process_input_test_from_pipe(input_list, args)
 
     def both_last_elements(self, l1: list, l2: list) -> (object, object):
+        """
+        Grep both last elements
+        :param l1:
+        :param l2:
+        :return:
+        """
         return last(l1), last(l2)
 
     def assert_both_last_elements(self, l1: list, l2: list) -> (object, object):
+        """
+        AssertEqual on both last elements
+        :param l1:
+        :param l2:
+        :return:
+        """
         a, b = last(l1), last(l2)
         self.assertEqual(False, a is None or b is None)
