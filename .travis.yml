@@ -1,0 +1,26 @@
+sudo: required
+
+language: rust
+
+rust:
+  - nightly
+
+addons:
+  apt:
+    packages:
+      - python3
+
+matrix:
+  allow_failures:
+    - rust: nightly
+
+cache: cargo
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y llvm-3.8-dev
+
+script:
+  - cargo build
+  - cd tests
+  - python3 -m unittestcolor discover -s . -t . -p "test_*"

@@ -50,7 +50,7 @@ macro_rules! green {
 #[derive(Debug, Clone)]
 pub enum ErrorReason {
     UnknownChar(char),
-    InvalidLitteralNum(String),
+    InvalidLiteralNum(String),
     UnterminatedString,
     UnmatchedParenthesis,
     ExprExpected,
@@ -88,8 +88,8 @@ impl fmt::Display for ErrorReason {
         match self {
             &ErrorReason::UnknownChar(ref c) =>
                 write!(f, "Unknown char \'{}\'", purple!(c)),
-            &ErrorReason::InvalidLitteralNum(ref s) =>
-                write!(f, "Invalid litteral number \"{}\"", purple!(s)),
+            &ErrorReason::InvalidLiteralNum(ref s) =>
+                write!(f, "Invalid Literal number \"{}\"", purple!(s)),
             &ErrorReason::UnterminatedString =>
                 write!(f, "Unterminated string"),
             &ErrorReason::UnmatchedParenthesis =>

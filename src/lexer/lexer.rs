@@ -97,7 +97,7 @@ impl<'a> Lexer<'a> {
         let mut base_len = 0;
         let mut is_double = false;
 
-        // Try to determine the base used in the litteral number
+        // Try to determine the base used in the Literal number
         if c == '0' {
             match self.chars.peek() {
                 Some(c @ 'x') | Some(c @ 'X') => {
@@ -127,13 +127,13 @@ impl<'a> Lexer<'a> {
         // Convert string to number
         if is_double {
             match s.parse::<f64>().ok() {
-                Some(f) => Ok(self.new_token(TokenType::DoubleLitteral(f))),
-                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLitteralNum(s))),
+                Some(f) => Ok(self.new_token(TokenType::DoubleLiteral(f))),
+                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLiteralNum(s))),
             }
         } else {
             match i32::from_str_radix(&s[base_len..], base).ok() {
-                Some(i) => Ok(self.new_token(TokenType::IntegerLitteral(i))),
-                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLitteralNum(s))),
+                Some(i) => Ok(self.new_token(TokenType::IntegerLiteral(i))),
+                _ => Err(self.new_syntaxerror(ErrorReason::InvalidLiteralNum(s))),
             }
         }
     }

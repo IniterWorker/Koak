@@ -1,5 +1,5 @@
 //!
-//! This module implements expressions, in all forms: variables, function calls, litteral numbers, calculations etc.
+//! This module implements expressions, in all forms: variables, function calls, Literal numbers, calculations etc.
 //!
 
 use std::collections::HashMap;
@@ -32,9 +32,9 @@ lazy_static! {
 
 #[derive(Debug, Clone)]
 pub enum ExprType {
-    BoolLitteral(bool),
-    IntegerLitteral(i32),
-    DoubleLitteral(f64),
+    BoolLiteral(bool),
+    IntegerLiteral(i32),
+    DoubleLiteral(f64),
     Variable(Rc<String>),
     Unary(OperatorType, Box<Expr>),
     Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
@@ -118,10 +118,10 @@ fn parse_bin_rhs(parser: &mut Parser, i: i32, lhs: Expr) -> Result<Expr, SyntaxE
 fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     let expr = parser.next_or(ErrorReason::ExprExpected)?;
     match expr.token_type {
-        TokenType::True => Ok(Expr::new(expr, ExprType::BoolLitteral(true))),
-        TokenType::False => Ok(Expr::new(expr, ExprType::BoolLitteral(false))),
-        TokenType::DoubleLitteral(n) => Ok(Expr::new(expr, ExprType::DoubleLitteral(n))),
-        TokenType::IntegerLitteral(n) => Ok(Expr::new(expr, ExprType::IntegerLitteral(n))),
+        TokenType::True => Ok(Expr::new(expr, ExprType::BoolLiteral(true))),
+        TokenType::False => Ok(Expr::new(expr, ExprType::BoolLiteral(false))),
+        TokenType::DoubleLiteral(n) => Ok(Expr::new(expr, ExprType::DoubleLiteral(n))),
+        TokenType::IntegerLiteral(n) => Ok(Expr::new(expr, ExprType::IntegerLiteral(n))),
         TokenType::OpenParenthesis => {
             let expr = parse_expr(parser)?;
 
@@ -172,9 +172,9 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, SyntaxError> {
 impl IRGenerator for Expr {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
         match self.expr_type {
-            ExprType::BoolLitteral(b) => Ok(IntConstRef::get(&IntTypeRef::get_int1(), b as u64, true).to_ref()),
-            ExprType::IntegerLitteral(n) => Ok(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref()),
-            ExprType::DoubleLitteral(n) => Ok(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref()),
+            ExprType::BoolLiteral(b) => Ok(IntConstRef::get(&IntTypeRef::get_int1(), b as u64, true).to_ref()),
+            ExprType::IntegerLiteral(n) => Ok(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref()),
+            ExprType::DoubleLiteral(n) => Ok(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref()),
             ExprType::Variable(ref s) => match context.get_var(s) {
                 Some(var) => Ok(var),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),
