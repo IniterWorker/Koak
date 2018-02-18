@@ -16,6 +16,7 @@ use lexer::TokenType;
 use parser::Parser;
 use lang::expr::{Expr, parse_expr};
 use lang::types;
+use lang::types::KoakType;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 
@@ -59,7 +60,7 @@ impl IRGenerator for Cond {
         let cond_expr = self.cond.gen_ir(context, module_provider)?;
 
         // Cast it to bool
-        let bool_expr = types::cast_to(&self.cond.token, cond_expr, IntTypeRef::get_int1().to_ref(), context)?;
+        let bool_expr = types::cast_to(cond_expr, KoakType::Bool.as_llvm_ref(), context)?;
 
         // Compare it to zero
         let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();

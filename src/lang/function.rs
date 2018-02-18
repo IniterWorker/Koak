@@ -142,7 +142,7 @@ impl IRGenerator for ConcreteFunction {
             })?;
 
             // Cast it to return type
-            let ret_casted = types::cast_to(&body_expr.token, ret_val, self.ret, context)?;
+            let ret_casted = types::cast_to(ret_val, self.ret, context)?;
 
             // Return the last instruction
             context.builder.build_ret(&ret_casted);
