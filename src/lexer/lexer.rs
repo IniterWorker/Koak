@@ -156,8 +156,11 @@ impl<'a> Lexer<'a> {
             "if" => Ok(self.new_token(TokenType::If)),
             "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
-            "double" => Ok(self.new_token(TokenType::Double)),
+            "true" => Ok(self.new_token(TokenType::True)),
+            "false" => Ok(self.new_token(TokenType::False)),
+            "bool" => Ok(self.new_token(TokenType::Bool)),
             "int" => Ok(self.new_token(TokenType::Int)),
+            "double" => Ok(self.new_token(TokenType::Double)),
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
         }
     }

@@ -32,6 +32,9 @@ pub enum TokenType {
     Arrow,
     Int,
     Double,
+    Bool,
+    True,
+    False,
 
     Unknown,
 }
@@ -65,6 +68,7 @@ impl Token {
 
     pub fn as_llvm_type(&self) -> Result<LLVMTypeRef, SyntaxError> {
         match self.token_type {
+            TokenType::Bool => Ok(IntTypeRef::get_int1().to_ref()),
             TokenType::Int => Ok(IntTypeRef::get_int32().to_ref()),
             TokenType::Double => Ok(RealTypeRef::get_double().to_ref()),
             _ => Err(SyntaxError::from(self, ErrorReason::InvalidType)),
