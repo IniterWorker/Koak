@@ -181,7 +181,7 @@ class CustomTestCase(TestCase):
         self.assertKoakLastContain(None, test_error, Stream.STDERR)
 
     def assertKoakLastOutContain(self, test_out: str):
-        self.assertKoakLastContain(None, test_out, Stream.STDERR)
+        self.assertKoakLastContain(test_out, None, Stream.STDERR)
 
     def assertKoakLastEqual(self, test_out: object, test_error: object,
                             stream_check: object = Stream.STDOUT_AND_STDERR) -> object:

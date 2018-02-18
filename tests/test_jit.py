@@ -51,6 +51,40 @@ class DefinitionTest(JITCustomTestCase):
         ])
         self.assertKoakListEqual()
 
+    def test_definition_in_body(self):
+        self.stdin_append("def f(x:int) -> int def t(y: int) -> int x * x;")
+        self.assertKoakLastErrorContain("An expression was expected")
+
+    def test_definition_without_typing(self):
+        self.stdin_append("def f(x) -> int x * x;")
+        self.assertKoakLastErrorContain("Argument type is expected")
+
+    def test_definition_without_delimiter(self):
+        self.stdin_append("def f(x:int) -> int x * x")
+        self.assertKoakLastErrorContain("Missing semi-colon after an")
+
+    def test_definition_without_return_typing(self):
+        self.stdin_append("def f(x:int) x * x")
+        self.assertKoakLastErrorContain("Return type is expected")
+
+
+class RedefinitionDefinitionTests(JITCustomTestCase):
+
+    def test_redefinition_of_f_only(self):
+        self.stdin_append([
+            "def f(x: int) -> int x;"
+            "def f(x: int) -> int x;"
+        ])
+        self.assertKoakLastErrorContain("Redefinition of function \"f\"")
+
+    def test_redefinition_of_f(self):
+        self.stdin_append([
+            "def f(x: int) -> int x;"
+            "5;",
+            "def f(x: int) -> int x;"
+        ])
+        self.assertKoakNeedError()
+
 
 class UnaryOperatorTest(JITCustomTestCase):
 
