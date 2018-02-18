@@ -55,9 +55,9 @@ pub fn calculate_common(lhs: LLVMValueRef, rhs: LLVMValueRef) -> Option<LLVMType
             let rhs_ty = unsafe { IntTypeRef::from_ref(rhs.get_type()) };
             if lhs_ty.get_width() <= rhs_ty.get_width() {
                 // Chose the smaller integer type
-                Some(lhs.get_type())
-            } else {
                 Some(rhs.get_type())
+            } else {
+                Some(lhs.get_type())
             }
         }
         (LLVMTypeKind::LLVMDoubleTypeKind, LLVMTypeKind::LLVMIntegerTypeKind) => Some(lhs.get_type()),
