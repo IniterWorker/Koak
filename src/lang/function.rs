@@ -9,27 +9,27 @@ use llvm_sys::prelude::LLVMTypeRef;
 use llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction;
 use llvm_sys::core::LLVMDeleteFunction;
 
-use iron_llvm::core::value::{Function, FunctionRef, FunctionCtor};
-use iron_llvm::core::types::{FunctionTypeCtor, FunctionTypeRef};
 use iron_llvm::LLVMRef;
+use iron_llvm::core::value::{Function, FunctionRef, FunctionCtor};
+use iron_llvm::core::types::{FunctionTypeCtor, FunctionTypeRef, Type, RealTypeRef, RealTypeCtor};
+use iron_llvm::core::Value;
 
 use lexer::{Token, TokenType};
 use parser::Parser;
-use lang::Type;
 use lang::expr::{Expr, parse_expr};
-use codegen::{IRContext, IRModuleProvider, IRGenerator, IRResult, IRExprGenerator};
+use lang::types;
+use codegen::{IRContext, IRModuleProvider, IRGenerator, IRResult};
 use error::{SyntaxError, ErrorReason};
-use lang::variable::Variable;
 
 pub struct ConcreteArg {
     pub name: Rc<String>,
     pub token: Token,
-    pub ty: Type,
+    pub ty: LLVMTypeRef,
 }
 
 impl ConcreteArg {
     #[inline]
-    pub fn new(name: Rc<String>, token: Token, ty: Type) -> ConcreteArg {
+    pub fn new(name: Rc<String>, token: Token, ty: LLVMTypeRef) -> ConcreteArg {
         ConcreteArg {
             name: name,
             token: token,
@@ -40,7 +40,7 @@ impl ConcreteArg {
 
 impl fmt::Debug for ConcreteArg {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}: {}", self.name, self.ty)
+        write!(f, "{}: {}", self.name, self.ty.print_to_string())
     }
 }
 
@@ -48,13 +48,13 @@ pub struct ConcreteFunction {
     pub token: Token,
     pub name: Rc<String>,
     pub args: Vec<ConcreteArg>,
-    pub ret: Type,
+    pub ret: LLVMTypeRef,
     pub body: Option<Expr>,
 }
 
 impl ConcreteFunction {
     #[inline]
-    pub fn new(token: Token, name: Rc<String>, args: Vec<ConcreteArg>, ret: Type, body: Option<Expr>) -> ConcreteFunction {
+    pub fn new(token: Token, name: Rc<String>, args: Vec<ConcreteArg>, ret: LLVMTypeRef, body: Option<Expr>) -> ConcreteFunction {
         ConcreteFunction {
             token: token,
             name: name,
@@ -74,7 +74,7 @@ impl ConcreteFunction {
             name += "$"; // Prevent the name from being taken by a user-defined function
             NB_ANON += 1;
         }
-        ConcreteFunction::new(Token::new(), Rc::new(name), Vec::new(), Type::Int, Some(b)) // TODO Change this to an abstract type
+        ConcreteFunction::new(Token::new(), Rc::new(name), Vec::new(), RealTypeRef::get_double().to_ref(), Some(b))
     }
 }
 
@@ -88,7 +88,7 @@ impl fmt::Debug for ConcreteFunction {
                 write!(f, ", {:?}", arg)?;
             }
         }
-        write!(f, ") -> {}", self.ret)
+        write!(f, ") -> {}", self.ret.print_to_string())
     }
 }
 
@@ -109,20 +109,18 @@ impl IRGenerator for ConcreteFunction {
             },
             None => { // New function
 
-                let mut params_type: Vec<LLVMTypeRef> = self.args.iter().map(|a| a.ty.as_llvm_ref()).collect();
+                let mut params_type: Vec<LLVMTypeRef> = self.args.iter().map(|a| a.ty).collect();
 
-                let ret_ty = FunctionTypeRef::get(&self.ret.as_llvm_ref(), params_type.as_mut_slice(), false);
-                let f = FunctionRef::new(&mut module_provider.get_module(), &self.name, &ret_ty);
-                use iron_llvm::core::Value;
-                f.dump();
-                f
+                let ret_ty = FunctionTypeRef::get(&self.ret, params_type.as_mut_slice(), false);
+                FunctionRef::new(&mut module_provider.get_module(), &self.name, &ret_ty)
             },
         };
 
         // Continue only if we are not in an extern declaration
         if let Some(ref body_expr) = self.body {
+
             // Update param name
-            for (param, arg) in func.params_iter().zip(&self.args) {
+            for (param, arg) in func.get_params().iter().zip(&self.args) {
                 use iron_llvm::core::Value;
 
                 param.set_name(&arg.name);
@@ -133,10 +131,8 @@ impl IRGenerator for ConcreteFunction {
             context.builder.position_at_end(&mut bb);
 
             // Add function parameter in current context
-            for (llvm_arg_ref, arg) in func.params_iter().zip(&self.args) {
-                let arg_value = arg.ty.new_value(llvm_arg_ref.to_ref()).unwrap();
-                let var = Variable::new(arg.name.clone(), arg_value);
-                context.add_var(arg.name.clone(), var);
+            for arg in func.get_params() {
+                context.add_var(Rc::new(arg.get_name()), arg.to_ref());
             }
 
             // Generate body + remove function on error (to let the user redefines it later)
@@ -145,28 +141,27 @@ impl IRGenerator for ConcreteFunction {
                     x
             })?;
 
-            // Return the last instruction
-            context.builder.build_ret(&ret_val.as_llvm_ref());
+            // Cast it to return type
+            let ret_casted = types::cast_to(&body_expr.token, ret_val, self.ret, context)?;
 
-            use iron_llvm::core::Value;
-            func.dump();
+            // Return the last instruction
+            context.builder.build_ret(&ret_casted);
 
             // Let LLVM Verify our function
             func.verify(LLVMAbortProcessAction);
 
             // Optimize this function
             module_provider.get_pass_manager().run(&mut func);
-
-            Ok(Some(func.to_ref()))
-        } else {
-            return Ok(Some(func.to_ref()));
         }
+        Ok(func.to_ref())
     }
 }
 
-pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxError> { // TODO Change this to abstract function
+pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxError> {
     let iden = parser.next_or(ErrorReason::ExpectedFuncName)?;
     if let TokenType::Identifier(_) = iden.token_type {
+        let func_name = if let TokenType::Identifier(ref s) = iden.token_type { s.clone() } else { unreachable!() };
+
         parser.next_of(TokenType::OpenParenthesis, ErrorReason::ExpectedOpenParenthesis)?;
 
         // Parse args
@@ -177,13 +172,8 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxEr
 
             // Parse argument type
             parser.next_of(TokenType::Colon, ErrorReason::ArgTypeExpected)?;
-
             let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
-            if let TokenType::Type(arg_type) = ty.token_type {
-                args.push(ConcreteArg::new(arg_name, arg_token, arg_type));
-            } else {
-                return Err(SyntaxError::from(&ty, ErrorReason::InvalidType));
-            }
+            args.push(ConcreteArg::new(arg_name, arg_token, ty.as_llvm_type()?));
 
             // Try to eat comma
             let t = parser.next_or(ErrorReason::ExpectedNextArgOrCloseParenthesis)?;
@@ -195,13 +185,8 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxEr
         }
 
         parser.next_of(TokenType::Arrow, ErrorReason::RetTypeExpected)?;
-        let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
-        if let TokenType::Type(ret_type) = ty.token_type {
-            let func_name = if let TokenType::Identifier(ref s) = iden.token_type { s.clone() } else { unreachable!() };
-            Ok(ConcreteFunction::new(iden, func_name, args, ret_type, None))
-        } else {
-            return Err(SyntaxError::from(&ty, ErrorReason::InvalidType));
-        }
+        let ret_type = parser.next_or(ErrorReason::ArgTypeExpected)?.as_llvm_type()?;
+        Ok(ConcreteFunction::new(iden, func_name, args, ret_type, None))
     } else {
         Err(SyntaxError::from(&iden, ErrorReason::ExpectedFuncName))
     }

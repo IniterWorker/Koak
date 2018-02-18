@@ -78,7 +78,7 @@ impl<'a> StdinPipeline<'a> {
             let mut toplevel_exprs = Vec::new(); // The top-level expressions to be executed by the JIT execution engine.
             for r in ast.iter() {
                 match r.gen_ir(&mut context, &mut module_provider) {
-                    Ok(Some(i)) => {
+                    Ok(i) => {
                         if let &ASTNode::TopLevelExpr(_) = r {
                             module_provider.close_current_module(); // Close current module and save expression
                             toplevel_exprs.push(i);
@@ -86,7 +86,6 @@ impl<'a> StdinPipeline<'a> {
                         irs.push(i);
                     },
                     Err(se) => errors.push(se),
-                    _ => (),
                 }
             }
 

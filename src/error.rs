@@ -8,9 +8,11 @@ use std::fmt;
 use libc;
 use ansi_term::Colour::*;
 
+use llvm_sys::prelude::LLVMTypeRef;
+use iron_llvm::core::types::Type;
+
 use args::Args;
-use lexer::{Token, OperatorType};
-use lang::Type;
+use lexer::Token;
 
 ///
 /// Quick macro to enable colors if stderr is a tty
@@ -53,7 +55,6 @@ pub enum ErrorReason {
     ExprExpected,
     ExpectedFuncName,
     ExpectedOpenParenthesis,
-    ArgMustBeIdentifier,
     UndefinedVariable(String),
     UndefinedFunction(String),
     WrongArgNumber(String, usize, usize),
@@ -67,10 +68,11 @@ pub enum ErrorReason {
     ArgTypeExpected,
     RetTypeExpected,
     InvalidType,
-    IfBodiesTypeDoesntMatch(Type, Type),
-    IncompatibleBinOp(OperatorType, Type, Type),
-    ArgWrongType(Type, Type),
+    IfBodiesTypeDoesntMatch(LLVMTypeRef, LLVMTypeRef),
+    IncompatibleBinOp(LLVMTypeRef, LLVMTypeRef),
+    IncompatibleUnaryOp(LLVMTypeRef),
     ExpectedNextArgOrCloseParenthesis,
+    CantCastTo(LLVMTypeRef, LLVMTypeRef),
 }
 
 ///
@@ -91,8 +93,6 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Function name was expected in a prototype"),
             &ErrorReason::ExpectedOpenParenthesis =>
                 write!(f, "Open parenthesis was expected after function name in a prototype"),
-            &ErrorReason::ArgMustBeIdentifier =>
-                write!(f, "Function arguments must be identifiers seperated by spaces"),
             &ErrorReason::UndefinedVariable(ref s) =>
                 write!(f, "Undefined variable \"{}\"", purple!(s)),
             &ErrorReason::UndefinedFunction(ref s) =>
@@ -120,13 +120,15 @@ impl fmt::Display for ErrorReason {
             &ErrorReason::InvalidType =>
                 write!(f, "Given type isn't valid"),
             &ErrorReason::IfBodiesTypeDoesntMatch(ref a, ref b) =>
-                write!(f, "If bodies's type doesn't match. Got \"{}\" on one side, and \"{}\" on the other one.", purple!(a), purple!(b)),
-            &ErrorReason::IncompatibleBinOp(ref op, ref lhs, ref rhs) =>
-                write!(f, "Binary operator {} doesn't exist for type {} and {}", purple!(format!("{:?}", op)), purple!(lhs), purple!(rhs)),
-            &ErrorReason::ArgWrongType(ref given, ref expected) =>
-                write!(f, "Bad function argument's type: \"{}\" expected, \"{}\" given.", purple!(given), purple!(expected)),
+                write!(f, "If bodies's type doesn't match. Got \"{}\" on one side, and \"{}\" on the other one", purple!(a.print_to_string()), purple!(b.print_to_string())),
+            &ErrorReason::IncompatibleBinOp(ref lhs, ref rhs) =>
+                write!(f, "Invalid binary operator for type \"{}\" and \"{}\"", purple!(lhs.print_to_string()), purple!(rhs.print_to_string())),
             &ErrorReason::ExpectedNextArgOrCloseParenthesis =>
                 write!(f, "Expected next function's argument or a close parenthesis"),
+            &ErrorReason::CantCastTo(ref a, ref b) =>
+                write!(f, "Can't cast type \"{}\" to type \"{}\"", purple!(a.print_to_string()), purple!(b.print_to_string())),
+            &ErrorReason::IncompatibleUnaryOp(ref a) =>
+                write!(f, "Invalid unary operator for type \"{}\"", purple!(a.print_to_string())),
         }
     }
 }

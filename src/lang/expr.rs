@@ -7,12 +7,16 @@ use std::rc::Rc;
 use std::fmt;
 
 use iron_llvm::LLVMRef;
+use iron_llvm::core::types::{IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor};
+use iron_llvm::core::value::{IntConstRef, IntConstCtor, RealConstRef, RealConstCtor};
 
 use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
-use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
+use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 use lang::cond::{Cond, parse_cond};
+use lang::types::KoakCalculable;
+use lang::types;
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -162,39 +166,35 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     parse_bin_rhs(parser, 0, expr)
 }
 
-impl IRExprGenerator for Expr {
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
+impl IRGenerator for Expr {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
         match self.expr_type {
-            ExprType::IntegerLitteral(n) => Ok(n.into()),
-            ExprType::DoubleLitteral(n) => Ok(n.into()),
+            ExprType::IntegerLitteral(n) => Ok(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref()),
+            ExprType::DoubleLitteral(n) => Ok(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref()),
             ExprType::Variable(ref s) => match context.get_var(s) {
-                Some(var) => Ok(var.value.clone_value()),
+                Some(var) => Ok(var),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),
             },
-            ExprType::Unary(ref op, ref rhs) => {
-                let val = rhs.gen_ir(context, module_provider)?;
-                let calc = val.as_calculable();
+            ExprType::Unary(ref op, ref expr) => {
+                let val = expr.gen_ir(context, module_provider)?;
                 match op {
-                    &OperatorType::Add => calc.unary_plus(context, &rhs.token),
-                    &OperatorType::Sub => calc.unary_minus(context, &rhs.token),
+                    &OperatorType::Add => Ok(val),
+                    &OperatorType::Sub => val.unary_not(context, &expr.token),
                     _ => unimplemented!(),
                 }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
-                use std::borrow::Borrow;
-
                 let lhs = lhs.gen_ir(context, module_provider)?;
                 let rhs = rhs.gen_ir(context, module_provider)?;
-                let lhs_calc = lhs.as_calculable();
                 match op {
-                    &OperatorType::Add => lhs_calc.add(context, &self.token, rhs.borrow()),
-                    &OperatorType::Sub => lhs_calc.sub(context, &self.token, rhs.borrow()),
-                    &OperatorType::Mul => lhs_calc.mul(context, &self.token, rhs.borrow()),
-                    &OperatorType::Div => lhs_calc.div(context, &self.token, rhs.borrow()),
-                    &OperatorType::Rem => lhs_calc.rem(context, &self.token, rhs.borrow()),
-                    &OperatorType::Less => lhs_calc.less(context, &self.token, rhs.borrow()),
-                    &OperatorType::More => lhs_calc.more(context, &self.token, rhs.borrow()),
-                    _ => panic!("Unimplemented binary operator \'{:?}\'.", op),
+                    &OperatorType::Add => KoakCalculable::add(&lhs, context, &self.token, rhs),
+                    &OperatorType::Sub => KoakCalculable::sub(&lhs, context, &self.token, rhs),
+                    &OperatorType::Mul => KoakCalculable::mul(&lhs, context, &self.token, rhs),
+                    &OperatorType::Div => KoakCalculable::div(&lhs, context, &self.token, rhs),
+                    &OperatorType::Rem => KoakCalculable::rem(&lhs, context, &self.token, rhs),
+                    &OperatorType::Less => KoakCalculable::lt(&lhs, context, &self.token, rhs),
+                    &OperatorType::More => KoakCalculable::gt(&lhs, context, &self.token, rhs),
+                    _ => unimplemented!(),
                 }
             }
             ExprType::Call(ref name, ref args) => {
@@ -207,14 +207,12 @@ impl IRExprGenerator for Expr {
                 if args.len() == func.args.len() as usize {
                     let mut args_value = Vec::new();
                     for (arg, wanted_type) in args.iter().zip(func.args.iter()) {
-                        let res = arg.gen_ir(context, module_provider)?;
-                        if res.get_type() != wanted_type.ty {
-                            return Err(SyntaxError::from(&arg.token, ErrorReason::ArgWrongType(wanted_type.ty, res.get_type())));
-                        }
-                        args_value.push(res.as_llvm_ref());
+                        let arg_val = arg.gen_ir(context, module_provider)?;
+                        let cast_arg = types::cast_to(&arg.token, arg_val, wanted_type.ty, context)?;
+                        args_value.push(cast_arg);
                     }
                     let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap();
-                    Ok(func.ret.new_value(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))?)
+                    Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))
                 } else {
                     Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.args.len() as usize, args.len())))
                 }

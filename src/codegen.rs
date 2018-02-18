@@ -11,8 +11,6 @@ use iron_llvm::core;
 use iron_llvm::core::value::FunctionRef;
 
 use error::SyntaxError;
-use lang::value::Value;
-use lang::variable::Variable;
 use lang::function::ConcreteFunction;
 
 ///
@@ -21,8 +19,8 @@ use lang::function::ConcreteFunction;
 pub struct IRContext {
     pub context: core::Context,
     pub builder: core::Builder,
-    pub functions: HashMap<Rc<String>, Rc<ConcreteFunction>>, // TODO Change this to abstract function
-    scopes: Vec<HashMap<Rc<String>, Variable>>, // Vector of a map of local variables
+    pub functions: HashMap<Rc<String>, Rc<ConcreteFunction>>,
+    scopes: Vec<HashMap<Rc<String>, LLVMValueRef>>, // Vector of a map of local variables
 }
 
 impl IRContext {
@@ -36,17 +34,17 @@ impl IRContext {
         }
     }
 
-    pub fn get_var(&self, name: &String) -> Option<&Variable> {
+    pub fn get_var(&self, name: &String) -> Option<LLVMValueRef> {
         for scope in self.scopes.iter().rev() {
             if let r @ Some(_) = scope.get(name) {
-                return r;
+                return r.map(|x| *x);
             }
         }
         None
     }
 
     #[inline]
-    pub fn add_var(&mut self, name: Rc<String>, val: Variable) {
+    pub fn add_var(&mut self, name: Rc<String>, val: LLVMValueRef) {
         self.scopes.last_mut().unwrap().insert(name, val);
     }
 
@@ -64,15 +62,10 @@ impl IRContext {
 ///
 /// Trait that each language element must provide to generate their corresponding IR code.
 ///
-pub type IRResult = Result<Option<LLVMValueRef>, SyntaxError>;
-pub type IRExprResult = Result<Box<Value>, SyntaxError>;
+pub type IRResult = Result<LLVMValueRef, SyntaxError>;
 
 pub trait IRGenerator {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult;
-}
-
-pub trait IRExprGenerator {
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult;
 }
 
 ///

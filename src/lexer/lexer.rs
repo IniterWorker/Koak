@@ -8,7 +8,6 @@ use std::str::Chars;
 
 use lexer::{Token, TokenType, OperatorType, LexerResult};
 use error::{SyntaxError, ErrorReason};
-use lang::Type;
 
 ///
 /// Iterator over chars used by the lexer
@@ -157,8 +156,8 @@ impl<'a> Lexer<'a> {
             "if" => Ok(self.new_token(TokenType::If)),
             "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
-            "double" => Ok(self.new_token(TokenType::Type(Type::Double))),
-            "int" => Ok(self.new_token(TokenType::Type(Type::Int))),
+            "double" => Ok(self.new_token(TokenType::Double)),
+            "int" => Ok(self.new_token(TokenType::Int)),
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
         }
     }

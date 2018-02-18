@@ -4,16 +4,20 @@
 
 use std::fmt;
 
+use llvm_sys::LLVMIntPredicate;
+
 use iron_llvm::{LLVMRef, LLVMRefCtor};
+use iron_llvm::core::types::{IntTypeRef, IntTypeCtor};
 use iron_llvm::core::instruction::{PHINode, PHINodeRef};
-use iron_llvm::core::value::Function;
+use iron_llvm::core::value::{Value, Function, IntConstRef, IntConstCtor};
 use iron_llvm::core::basic_block::*;
 
 use lexer::TokenType;
 use parser::Parser;
 use lang::expr::{Expr, parse_expr};
+use lang::types;
 use error::{SyntaxError, ErrorReason};
-use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
+use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 
 #[derive(Clone)]
 pub struct Cond {
@@ -49,13 +53,17 @@ pub fn parse_cond(parser: &mut Parser) -> Result<Cond, SyntaxError> {
     Ok(Cond::new(cond, then_body, else_body))
 }
 
-impl IRExprGenerator for Cond {
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
+impl IRGenerator for Cond {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
         // Calculate the condition
         let cond_expr = self.cond.gen_ir(context, module_provider)?;
 
+        // Cast it to bool
+        let bool_expr = types::cast_to(&self.cond.token, cond_expr, IntTypeRef::get_int1().to_ref(), context)?;
+
         // Compare it to zero
-        let cond_val = cond_expr.as_calculable().cmp_zero(context)?;
+        let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();
+        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, bool_expr, zero, "cond");
 
         // Generate the three new blocks
         let current_block = context.builder.get_insert_block();
@@ -65,7 +73,7 @@ impl IRExprGenerator for Cond {
         let mut merge_block = function.append_basic_block_in_context(&mut context.context, "merge");
 
         // Seperate the current_bloc in two
-        context.builder.build_cond_br(cond_val.as_llvm_ref(), &then_block, &else_block);
+        context.builder.build_cond_br(cond_res, &then_block, &else_block);
 
         // Fill 'then' block
         context.builder.position_at_end(&mut then_block);
@@ -89,13 +97,13 @@ impl IRExprGenerator for Cond {
         // Set the return value depdends on the branch taken
         let phi_type = then_value.get_type();
         let mut phi = unsafe {
-            PHINodeRef::from_ref(context.builder.build_phi(phi_type.as_llvm_ref(), "ifphi"))
+            PHINodeRef::from_ref(context.builder.build_phi(phi_type, "ifphi"))
         };
         phi.add_incoming(
-            vec![then_value.as_llvm_ref(), else_value.as_llvm_ref()].as_mut_slice(),
+            vec![then_value, else_value].as_mut_slice(),
             vec![then_end, else_end].as_mut_slice(),
         );
 
-        Ok(phi_type.new_value(phi.to_ref())?)
+        Ok(phi.to_ref())
     }
 }
