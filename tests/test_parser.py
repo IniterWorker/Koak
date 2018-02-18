@@ -156,25 +156,29 @@ class BinOperatorTest(ParserCustomTestCase):
 
     def test_priority_basic_neg(self):
         self.stdin_append("1 % 2 * 3;")
-        self.stdout_expected("TopLevelExpr(Binary(Mul, Binary(Rem, IntegerLiteral(1), IntegerLiteral(2)), IntegerLiteral(3)))")
+        self.stdout_expected(
+            "TopLevelExpr(Binary(Mul, Binary(Rem, IntegerLiteral(1), IntegerLiteral(2)), IntegerLiteral(3)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_priority_basic_add_div(self):
         self.stdin_append("1 + 2 / 3;")
-        self.stdout_expected("TopLevelExpr(Binary(Add, IntegerLiteral(1), Binary(Div, IntegerLiteral(2), IntegerLiteral(3))))")
+        self.stdout_expected(
+            "TopLevelExpr(Binary(Add, IntegerLiteral(1), Binary(Div, IntegerLiteral(2), IntegerLiteral(3))))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_priority_basic_modulo_mul(self):
         self.stdin_append("1 % 2 * 3;")
-        self.stdout_expected("TopLevelExpr(Binary(Mul, Binary(Rem, IntegerLiteral(1), IntegerLiteral(2)), IntegerLiteral(3)))")
+        self.stdout_expected(
+            "TopLevelExpr(Binary(Mul, Binary(Rem, IntegerLiteral(1), IntegerLiteral(2)), IntegerLiteral(3)))")
         self.assertKoakListEqual()
         self.assertKoakZeroError()
 
     def test_priority_modulo_mul(self):
         self.stdin_append("1 % 2 * 3;")
-        self.stdout_expected("TopLevelExpr(Binary(Mul, Binary(Rem, IntegerLiteral(1), IntegerLiteral(2)), IntegerLiteral(3)))")
+        self.stdout_expected(
+            "TopLevelExpr(Binary(Mul, Binary(Rem, IntegerLiteral(1), IntegerLiteral(2)), IntegerLiteral(3)))")
         self.assertKoakListEqual()
 
 
@@ -227,6 +231,56 @@ class DefinitionTest(ParserCustomTestCase):
                              ")))")
         self.assertKoakZeroError()
         self.assertKoakListEqual()
+
+
+class LiteralTest(ParserCustomTestCase):
+
+    def test_hexadecimal_const_0xFF(self):
+        self.stdin_append("0xFF;")
+        self.stdout_expected("TopLevelExpr(IntegerLiteral({}))".format(int("0xFF", 16)))
+        self.assertKoakListEqual()
+
+    def test_hexadecimal_const_0x00(self):
+        self.stdin_append("0x00;")
+        self.stdout_expected("TopLevelExpr(IntegerLiteral({}))".format(int("0x00", 16)))
+        self.assertKoakListEqual()
+
+    def test_hexadecimal_const_0x11111111(self):
+        self.stdin_append("0x11111111;")
+        self.stdout_expected("TopLevelExpr(IntegerLiteral({}))".format(int("0x11111111", 16)))
+        self.assertKoakListEqual()
+
+    def test_hexadecimal_const_0x11111111F(self):
+        self.stdin_append("0x11111111F;")
+        self.assertKoakListEqual()
+        self.assertKoakNeedError()
+
+    def test_hexadecimal_const_0x(self):
+        self.stdin_append("0x;")
+        self.assertKoakListEqual()
+        self.assertKoakNeedError()
+
+    def test_integer_limit_32(self):
+        self.stdin_append("0x7FFFFFFF;")
+        self.stdout_expected("TopLevelExpr(IntegerLiteral({}))".format(int("0x7FFFFFFF", 16)))
+        self.assertKoakListEqual()
+        self.assertKoakZeroError()
+
+    def test_integer_limit_overflow(self):
+        self.stdin_append("0xFFFFFFFF;")
+        self.assertKoakNeedError()
+
+    def test_double_one(self):
+        self.stdin_append("1.0;")
+        self.stdout_expected("TopLevelExpr(DoubleLiteral({}))".format("1.0"))
+        self.assertKoakListEqual()
+        self.assertKoakZeroError()
+
+    def test_double_zero(self):
+        self.stdin_append("0.0;")
+        self.stdout_expected("TopLevelExpr(DoubleLiteral({}))".format("0.0"))
+        self.assertKoakListEqual()
+        self.assertKoakZeroError()
 
 
 if __name__ == "__main__":
