@@ -53,6 +53,10 @@ class CustomTestCase(TestCase):
         super().__init__(methodName)
 
     def setUp(self):
+        """
+        Run before each test to setup with self.init method.
+        :return:
+        """
         self.init()
 
     def init(self):
@@ -66,17 +70,37 @@ class CustomTestCase(TestCase):
         self.run = False
 
     def input_type_piped(self):
+        """
+        Set type Pipe
+        :return:
+        """
         self.input_type = InputType.PIPE
 
     def input_type_file(self):
+        """
+        Set type file
+        :return:
+        """
         self.input_type = InputType.FILE
 
     def set_list_args(self, args=None):
+        """
+        Set list args of Koak
+        :param args:
+        :return:
+        """
         if args is None:
             args = ["-t"]
         self.list_args = args
 
     def std_append(self, std: list, lines: object, endline: str = "\n"):
+        """
+        Append in list with additional strings list or string
+        :param std:
+        :param lines:
+        :param endline:
+        :return:
+        """
         if isinstance(lines, list):
             std += list(map((lambda line: line + endline), lines))
         elif isinstance(lines, str):
@@ -85,16 +109,31 @@ class CustomTestCase(TestCase):
             raise TypeError("std_append list or str")
 
     def stderr_expected(self, lines: object, endline: str = "\n"):
+        """
+        Append method to add expected output in stderr
+        :param lines:
+        :param endline:
+        """
         if self.list_stderr is None:
             self.list_stderr = []
         self.std_append(self.list_stderr, lines, endline)
 
     def stdout_expected(self, lines: object, endline: str = "\n"):
+        """
+        Append method to add expected output in stderr
+        :param lines:
+        :param endline:
+        """
         if self.list_stdout is None:
             self.list_stdout = []
         self.std_append(self.list_stdout, lines, endline)
 
     def stdin_append(self, lines: object, endline: str = "\n"):
+        """
+        Append method to add buffer in stdin
+        :param lines:
+        :param endline:
+        """
         if self.list_stdin is None:
             self.list_stdin = []
         self.std_append(self.list_stdin, lines, endline)
@@ -169,12 +208,22 @@ class CustomTestCase(TestCase):
         trace += "STDIN >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stdin)) + "\n" if self.list_stdin is not None else "\n"
         trace += "STDOUT >\n"
+        trace += "".join(map(lambda x: padding + x, self.current_stdout)) + "\n" if self.current_stdout is not None else "\n"
+        trace += "STDOUT (expected) >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stdout)) + "\n" if self.list_stdout is not None else "\n"
         trace += "STDERR >\n"
+        trace += "".join(map(lambda x: padding + x, self.current_stderr)) + "\n" if self.current_stderr is not None else "\n"
+        trace += "STDERR (expected) >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stderr)) + "\n" if self.list_stderr is not None else "\n"
         return trace
 
     def _formatMessage(self, msg, standardMsg):
+        """
+        Adding additional pieces of information in debug stack
+        :param msg:
+        :param standardMsg:
+        :return: str
+        """
         return self._trace_custom() + "\n" + super()._formatMessage(msg, standardMsg)
 
     def assertKoakLastErrorEqual(self, test_error: str):
@@ -305,8 +354,20 @@ class CustomTestCase(TestCase):
             else self.process_input_test_from_pipe(input_list, args)
 
     def both_last_elements(self, l1: list, l2: list) -> (object, object):
+        """
+        Grep both last elements
+        :param l1:
+        :param l2:
+        :return:
+        """
         return last(l1), last(l2)
 
     def assert_both_last_elements(self, l1: list, l2: list) -> (object, object):
+        """
+        AssertEqual on both last elements
+        :param l1:
+        :param l2:
+        :return:
+        """
         a, b = last(l1), last(l2)
         self.assertEqual(False, a is None or b is None)
