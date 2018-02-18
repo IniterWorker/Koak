@@ -17,9 +17,16 @@ class DefinitionTest(JITCustomTestCase):
     def test_square_definition_25(self):
         self.stdin_append([
             "def square(x: int) -> int x * x;",
-            "square(5)"
+            "square(11);"
         ])
-        self.assertKoakLastOutEqual("=> 25\n")
+        self.assertKoakLastOutEqual("=> {}\n".format(11 * 11))
+
+    def test_square_definition_25_by_25(self):
+        self.stdin_append([
+            "def square(x: int) -> int x * x;",
+            "square(5) * square(5);"
+        ])
+        self.assertKoakLastOutEqual("=> {}\n".format(25 * 25))
 
     def test_square_return_bug_1(self):
         self.stdin_append([
@@ -32,7 +39,7 @@ class DefinitionTest(JITCustomTestCase):
 
     def test_fib_multiple(self):
         self.stdin_append([
-            "def fib(x) if x < 3 then 1 else fib(x - 1) + fib(x - 2) ;"
+            "def fib(x: int) -> int if x < 3 then 1 else fib(x - 1) + fib(x - 2) ;"
             "fib(2);fib(3);fib(4);fib(5);fib(6);"
         ])
         self.stdout_expected([

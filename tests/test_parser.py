@@ -61,7 +61,7 @@ class UnaryOperatorTest(ParserCustomTestCase):
         self.assertKoakZeroError()
 
     def test_complex_pos_neg(self):
-        self.stdin_append("1+-+-+-+-+-+1;")
+        self.stdin_append("1.0+-+-+-+-+-+1.0;")
         self.stdout_expected("TopLevelExpr("
                              "Binary(Add, DoubleLiteral(1.0), "
                              "Unary(Sub, "
@@ -111,8 +111,12 @@ class DelimiterTest(ParserCustomTestCase):
         self.stdin_append(";;;")
         self.assertKoakZeroError()
 
-    def test_function_missing_semicolon(self):
+    def test_function_missing_semicolon_without_typing(self):
         self.stdin_append("def fib(x) if x < 3 then 1 else fib(x - 1) + fib(x - 2)")
+        self.assertKoakLastErrorContain("Argument type is expected")
+
+    def test_function_missing_semicolon(self):
+        self.stdin_append("def fib(x: double) -> double if x < 3 then 1 else fib(x - 1) + fib(x - 2)")
         self.assertKoakLastErrorContain("Missing semi-colon")
 
     def test_delimiter_multiple_expr_and_empty(self):

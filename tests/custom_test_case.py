@@ -23,28 +23,6 @@ class Stream(Enum):
     STDOUT_AND_STDERR = auto()
 
 
-def process_input_list_from_file(input_list: list, args=None) -> (list, list):
-    """
-    Basic unit test method with two list string without carriage return, from a file
-    :rtype: tuple(list, list)
-    :return: (list_out, list_err)
-    """
-
-    if args is None:
-        args = ["-l"]
-
-    p = popen_koakfile_with_lines(input_list, args)
-
-    p.wait()
-
-    stdout, stderr = p.communicate()
-
-    list_out = extract_lines_from_std(stdout.decode("ascii"))
-    list_err = extract_lines_from_std(stderr.decode("ascii"))
-
-    return list_out, list_err
-
-
 def safe_len(o: list) -> int:
     return 0 if o is None else len(o)
 
@@ -82,6 +60,8 @@ class CustomTestCase(TestCase):
         self.list_stdin = None
         self.list_stdout = None
         self.list_stderr = None
+        self.current_stdout = None
+        self.current_stderr = None
         self.input_type = InputType.FILE
         self.run = False
 
@@ -165,7 +145,7 @@ class CustomTestCase(TestCase):
         self.assertKoakLastContain(None, test_out, Stream.STDERR)
 
     def assertKoakLastEqual(self, test_out: object, test_error: object,
-                            stream_check: Stream = Stream.STDOUT_AND_STDERR):
+                            stream_check: object = Stream.STDOUT_AND_STDERR) -> object:
         outs, errs = self.runKoak()
         lout = last(outs)
         lerr = last(errs)
@@ -203,7 +183,7 @@ class CustomTestCase(TestCase):
 
     def assertKoakLastOutEqual(self, test_out: str):
         self.runKoak()
-        self.assertKoakLastEqual(None, test_out, Stream.STDOUT)
+        self.assertKoakLastEqual(test_out, None, Stream.STDOUT)
 
     def assertKoakZeroError(self):
         outs, errs = self.runKoak()
@@ -250,14 +230,44 @@ class CustomTestCase(TestCase):
 
         stdout, stderr = p.communicate()
 
-        list_out = extract_lines_from_std(stdout.decode("ascii"))
-        list_err = extract_lines_from_std(stderr.decode("ascii"))
+        # Cache
+        self.current_stderr = stderr.decode("ascii")
+        self.current_stdout = stdout.decode("ascii")
+
+        list_out = extract_lines_from_std(self.current_stdout)
+        list_err = extract_lines_from_std(self.current_stderr)
 
         return list_out, list_err
 
+    def process_input_list_from_file(self, input_list: list, args=None) -> (list, list):
+        """
+        Basic unit test method with two list string without carriage return, from a file
+        :rtype: tuple(list, list)
+        :return: (list_out, list_err)
+        """
+
+        if args is None:
+            args = ["-l"]
+
+        p = popen_koakfile_with_lines(input_list, args)
+
+        p.wait()
+
+        stdout, stderr = p.communicate()
+
+        # Cache
+        self.current_stderr = stderr.decode("ascii")
+        self.current_stdout = stdout.decode("ascii")
+
+        list_out = extract_lines_from_std(self.current_stdout)
+        list_err = extract_lines_from_std(self.current_stderr)
+
+        return list_out, list_err
+
+
     def process_input_list(self, input_list: list, args=None) -> (list, list, list, list):
         a, b = self.process_input_list_from_pipe(input_list, args)
-        c, d = process_input_list_from_file(input_list, args)
+        c, d = self.process_input_list_from_file(input_list, args)
         return a, b, c, d
 
     def process_input_test_from_file(self, input_list: list, args=None) -> (list, list, list, list):
@@ -267,7 +277,7 @@ class CustomTestCase(TestCase):
         :param args:
         :return: (list_out, list_err, last_out, last_err)
         """
-        list_out, list_err = process_input_list_from_file(input_list, args)
+        list_out, list_err = self.process_input_list_from_file(input_list, args)
         last_out, last_err = self.both_last_elements(list_out, list_err)
         return list_out, list_err, last_out, last_err
 
