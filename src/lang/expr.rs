@@ -212,7 +212,7 @@ impl IRGenerator for Expr {
                     let mut args_value = Vec::new();
                     for (arg, wanted_type) in args.iter().zip(func.args.iter()) {
                         let arg_val = arg.gen_ir(context, module_provider)?;
-                        let cast_arg = types::cast_to(&arg.token, arg_val, wanted_type.ty, context)?;
+                        let cast_arg = types::cast_to(arg_val, wanted_type.ty, context)?;
                         args_value.push(cast_arg);
                     }
                     let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap();

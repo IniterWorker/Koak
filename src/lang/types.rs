@@ -7,41 +7,72 @@ use llvm_sys::LLVMTypeKind;
 use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
 use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
-use iron_llvm::LLVMRefCtor;
-use iron_llvm::core::value::Value;
-use iron_llvm::core::types::{IntType, IntTypeRef, Type};
+use iron_llvm::{LLVMRef, LLVMRefCtor};
+use iron_llvm::core::value::{Value, RealConstRef, IntConstRef, RealConstCtor, IntConstCtor};
+use iron_llvm::core::types::{IntType, IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor, Type};
 
 use error::{ErrorReason, SyntaxError};
 use codegen::{IRContext, IRResult};
 use lexer::Token;
 
+#[derive(Debug)]
+pub enum KoakType {
+    Bool,
+    Int,
+    Double,
+}
+
+impl KoakType {
+    #[inline]
+    pub fn as_llvm_ref(&self) -> LLVMTypeRef {
+        match self {
+            &KoakType::Bool => IntTypeRef::get_int1().to_ref(),
+            &KoakType::Int => IntTypeRef::get_int32().to_ref(),
+            &KoakType::Double => RealTypeRef::get_double().to_ref(),
+        }
+    }
+}
+
+impl Into<KoakType> for LLVMTypeRef {
+    fn into(self) -> KoakType {
+        match self.get_kind() {
+            LLVMTypeKind::LLVMDoubleTypeKind => KoakType::Double,
+            LLVMTypeKind::LLVMIntegerTypeKind => {
+                let int = unsafe { IntTypeRef::from_ref(self) };
+                match int.get_width() {
+                    1 => KoakType::Bool,
+                    32 => KoakType::Int,
+                    _ => panic!("Unknown integer width"),
+                }
+            }
+            _ => panic!("Unknown value type"),
+        }
+    }
+}
 ///
 /// Try to cast `val` to `ty`.
 /// Does nothing if `val` is already of type `ty`.
 ///
-pub fn cast_to(token: &Token, val: LLVMValueRef, ty: LLVMTypeRef, context: &mut IRContext) -> IRResult {
-    match (val.get_type().get_kind(), ty.get_kind()) {
-        (LLVMTypeKind::LLVMDoubleTypeKind, LLVMTypeKind::LLVMDoubleTypeKind) => Ok(val),
-        (LLVMTypeKind::LLVMIntegerTypeKind, LLVMTypeKind::LLVMIntegerTypeKind) => {
-            let lhs_ty = unsafe { IntTypeRef::from_ref(val.get_type()) };
-            let rhs_ty = unsafe { IntTypeRef::from_ref(ty) };
-            if lhs_ty.get_width() != rhs_ty.get_width() {
-                // Cast only if integer type is different
-                Ok(context.builder.build_int_cast(val, ty, "cast_si_si"))
-            } else {
-                Ok(val)
-            }
-        }
-        (LLVMTypeKind::LLVMDoubleTypeKind, LLVMTypeKind::LLVMIntegerTypeKind) => {
-            Ok(context.builder.build_fp_to_si(val, ty, "cast_fp_si"))
-        }
-        (LLVMTypeKind::LLVMIntegerTypeKind, LLVMTypeKind::LLVMDoubleTypeKind) => {
-            Ok(context.builder.build_si_to_fp(val, ty, "cast_si_fp"))
-        }
-        _ => Err(SyntaxError::from(
-            &token,
-            ErrorReason::CantCastTo(val.get_type(), ty),
-        )),
+pub fn cast_to(val: LLVMValueRef, ty: LLVMTypeRef, context: &mut IRContext) -> IRResult {
+    let tmp : KoakType = val.get_type().into();
+    let tmp2 : KoakType = ty.into();
+    println!("Casting {:?} to {:?}", tmp, tmp2);
+    match (val.get_type().into(), ty.into()) {
+        (KoakType::Bool, KoakType::Bool) => Ok(val),
+        (KoakType::Bool, KoakType::Int) => Ok(context.builder.build_zext(val, ty, "cast_i1_i32")),
+        (KoakType::Bool, KoakType::Double) => Ok(context.builder.build_ui_to_fp(val, ty, "cast_i1_double")),
+        (KoakType::Int, KoakType::Bool) => {
+            let zero = IntConstRef::get(&IntTypeRef::get_int32(), 0, true).to_ref();
+            Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, val, zero, "cast_i32_i1"))
+        },
+        (KoakType::Int, KoakType::Int) => Ok(val),
+        (KoakType::Int, KoakType::Double) => Ok(context.builder.build_si_to_fp(val, ty, "cast_i32_double")),
+        (KoakType::Double, KoakType::Bool) => {
+            let zero = RealConstRef::get(&RealTypeRef::get_double(), 0.0).to_ref();
+            Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, val, zero, "cast_double_i1"))
+        },
+        (KoakType::Double, KoakType::Int) => Ok(context.builder.build_fp_to_si(val, ty, "cast_double_i32")),
+        (KoakType::Double, KoakType::Double) => Ok(val),
     }
 }
 
@@ -70,8 +101,8 @@ macro_rules! binop {
     ( $context:expr, $lhs:expr, $rhs:expr, $token:expr ) => {
         match calculate_common($lhs, $rhs) {
             Some(ty) => {
-                let _lhs = cast_to($token, $lhs, ty, $context)?;
-                let _rhs = cast_to($token, $rhs, ty, $context)?;
+                let _lhs = cast_to($lhs, ty, $context)?;
+                let _rhs = cast_to($rhs, ty, $context)?;
                 Ok((ty.get_kind(), _lhs, _rhs))
             },
             None => Err(SyntaxError::from($token, ErrorReason::IncompatibleBinOp($lhs.get_type(), $rhs.get_type())))
