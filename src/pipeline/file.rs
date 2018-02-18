@@ -6,7 +6,7 @@ use args::Args;
 use lexer::Lexer;
 use parser::Parser;
 use error::print_errors;
-use input::{SourceInput, FileSourceInput};
+use input::FileSourceInput;
 use codegen::{SimpleModuleProvider, IRModuleProvider, IRContext, IRGenerator};
 
 use super::print_vec;

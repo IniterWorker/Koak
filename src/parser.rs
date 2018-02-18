@@ -11,7 +11,7 @@ use lang::function::{ConcreteFunction, parse_func_def, parse_extern_func};
 use codegen::{IRContext, IRGenerator, IRModuleProvider, IRResult};
 use pipeline::module;
 
-pub type ParserResult = Result<ASTNode, SyntaxError>;
+pub type ParserResult = Result<Vec<ASTNode>, Vec<SyntaxError>>;
 
 ///
 /// All root declarations possibles.
@@ -109,7 +109,7 @@ impl<'a> Parser<'a> {
         Ok(ASTNode::FunctionDef(Rc::new(parse_extern_func(self)?)))
     }
 
-    fn parse_import(&mut self) -> Result<Vec<ASTNode>, Vec<SyntaxError>> {
+    fn parse_import(&mut self) -> ParserResult {
         self.tokens.pop(); // Eat 'import'
         let t = self.next_or(ErrorReason::ModuleNameExpected).map_err(|e| vec![e])?;
         if let TokenType::StringLitteral(ref s) = t.token_type {
@@ -135,7 +135,7 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Iterator for Parser<'a> {
-    type Item = Result<Vec<ASTNode>, Vec<SyntaxError>>;
+    type Item = ParserResult;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
