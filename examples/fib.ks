@@ -9,4 +9,4 @@ def fib(x: int) -> int
         fib(x - 1) + fib(x - 2)
 ;
 
-fib(40); # Computes the 40th number
+fib(42); # Computes the 40th number

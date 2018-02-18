@@ -1,5 +1,5 @@
 //!
-//! Koak's stdin pipeline.
+//! Koak's file-to-assembly pipeline.
 //!
 
 use args::Args;
@@ -10,6 +10,7 @@ use input::{SourceInput, FileSourceInput};
 use codegen::{SimpleModuleProvider, IRModuleProvider, IRContext, IRGenerator};
 
 use super::print_vec;
+use super::module;
 
 pub struct FilePipeline<'a> {
     input: FileSourceInput,
@@ -30,7 +31,8 @@ impl<'a> FilePipeline<'a> {
     ///
     pub fn run(&mut self) -> bool {
         let mut context = IRContext::new();
-        let mut module_provider = SimpleModuleProvider::from(self.input.get_name(), self.args.optimization);
+        let mut module_provider = SimpleModuleProvider::from(&self.input.path, self.args.optimization);
+        let mut module_manager = module::ModuleManager::new();
 
         // Vector of errors
         let mut errors = Vec::new();
@@ -40,7 +42,6 @@ impl<'a> FilePipeline<'a> {
 
         // Iterate on lines
         for (row, line) in (&mut self.input).enumerate() {
-
             for r in Lexer::new(&line, row + 1) { // Lexe input
                 match r {
                     Ok(token) => tokens.push(token),
@@ -58,10 +59,10 @@ impl<'a> FilePipeline<'a> {
             return errors.len() != 0;
         }
 
-        for r in Parser::new(tokens) {
+        for r in Parser::new(&mut module_manager, tokens) {
             match r {
-                Ok(node) => ast.push(node),
-                Err(se) => errors.push(se),
+                Ok(mut nodes) => ast.append(&mut nodes),
+                Err(mut ses) => errors.append(&mut ses),
             }
         }
 

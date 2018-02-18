@@ -13,6 +13,7 @@ use codegen::{IRContext, IRGenerator};
 use jit::JitModuleProvider;
 
 use super::print_vec;
+use super::module;
 
 pub struct StdinPipeline<'a> {
     input: StdinSourceInput,
@@ -34,6 +35,7 @@ impl<'a> StdinPipeline<'a> {
     pub fn run(&mut self) {
         let mut context = IRContext::new();
         let mut module_provider = JitModuleProvider::from(self.input.get_name(), self.args.optimization);
+        let mut module_manager = module::ModuleManager::new();
 
         // Iterate on stdin
         for (row, line) in (&mut self.input).enumerate() {
@@ -58,10 +60,10 @@ impl<'a> StdinPipeline<'a> {
                 continue
             }
 
-            for r in Parser::new(tokens) {
+            for r in Parser::new(&mut module_manager, tokens) {
                 match r {
-                    Ok(node) => ast.push(node),
-                    Err(se) => errors.push(se),
+                    Ok(mut nodes) => ast.append(&mut nodes),
+                    Err(mut ses) => errors.append(&mut ses),
                 }
             }
 

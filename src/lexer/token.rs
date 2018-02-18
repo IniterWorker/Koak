@@ -24,6 +24,7 @@ pub enum TokenType {
     Identifier(Rc<String>),
     IntegerLitteral(i32),
     DoubleLitteral(f64),
+    StringLitteral(String),
     OpenParenthesis,
     CloseParenthesis,
     Comma,
@@ -35,6 +36,7 @@ pub enum TokenType {
     Bool,
     True,
     False,
+    Import,
 
     Unknown,
 }

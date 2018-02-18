@@ -9,6 +9,7 @@ use error::{SyntaxError, ErrorReason};
 use lang::expr::{Expr, parse_expr};
 use lang::function::{ConcreteFunction, parse_func_def, parse_extern_func};
 use codegen::{IRContext, IRGenerator, IRModuleProvider, IRResult};
+use pipeline::module;
 
 pub type ParserResult = Result<ASTNode, SyntaxError>;
 
@@ -46,17 +47,19 @@ impl IRGenerator for ASTNode {
 /// The parser is basically a structure holding common used items and helper functions.
 /// Most of the parsing are done in the core language modules (in lang::*).
 ///
-pub struct Parser {
+pub struct Parser<'a> {
+    pub module_manager: &'a mut module::ModuleManager,
     pub tokens: Vec<Token>,
     pub last_tok: Token,
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
     #[inline]
-    pub fn new(mut tokens: Vec<Token>) -> Parser {
+    pub fn new(mm: &'a mut module::ModuleManager, mut tokens: Vec<Token>) -> Parser<'a> {
         tokens.reverse();
         let last_tok = tokens.first().map(|t| t.clone()).unwrap_or(Token::new());
         Parser {
+            module_manager: mm,
             tokens: tokens, // Reverse so that the current token is the last one
             last_tok: last_tok,
         }
@@ -106,6 +109,17 @@ impl Parser {
         Ok(ASTNode::FunctionDef(Rc::new(parse_extern_func(self)?)))
     }
 
+    fn parse_import(&mut self) -> Result<Vec<ASTNode>, Vec<SyntaxError>> {
+        self.tokens.pop(); // Eat 'import'
+        let t = self.next_or(ErrorReason::ModuleNameExpected).map_err(|e| vec![e])?;
+        if let TokenType::StringLitteral(ref s) = t.token_type {
+            self.next_of(TokenType::SemiColon, ErrorReason::MissingSemiColonAfterImport).map_err(|e| vec![e])?;
+            module::load_module(self.module_manager, &t, s)
+        } else {
+            Err(vec![SyntaxError::from(&t, ErrorReason::ModuleNameExpected)])
+        }
+    }
+
     #[inline]
     fn parse_toplevel_expr(&mut self) -> Result<ASTNode, SyntaxError> {
         let expr = parse_expr(self)?;
@@ -120,8 +134,8 @@ impl Parser {
 
 }
 
-impl Iterator for Parser {
-    type Item = ParserResult;
+impl<'a> Iterator for Parser<'a> {
+    type Item = Result<Vec<ASTNode>, Vec<SyntaxError>>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -132,13 +146,19 @@ impl Iterator for Parser {
         let out = match self.peek_type()? {
             &TokenType::Def => self.parse_function_def(),
             &TokenType::Extern => self.parse_extern_declaration(),
+            &TokenType::Import => {
+                return Some(self.parse_import());
+            },
             _ => self.parse_toplevel_expr()
         };
 
         Some(out
+            .and_then(|o| {
+                Ok(vec![o])
+            })
             .or_else(|e| { // Skip tokens until semi-colon, to avoid multiple errors
                 self.skip_until_semicolon();
-                Err(e)
+                Err(vec![e])
             })
         )
     }

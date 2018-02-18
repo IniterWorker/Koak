@@ -138,6 +138,18 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn lex_string(&mut self) -> LexerResult {
+        let mut s = String::new();
+
+        while let Some(c) = self.chars.next() {
+            if c == '"' {
+                return Ok(self.new_token(TokenType::StringLitteral(s)))
+            }
+            s.push(c);
+        }
+        Err(self.new_syntaxerror(ErrorReason::UnterminatedString))
+    }
+
     fn lex_identifier(&mut self, c: char) -> LexerResult {
         let mut s = c.to_string();
 
@@ -153,6 +165,7 @@ impl<'a> Lexer<'a> {
         match s.as_ref() {
             "def" => Ok(self.new_token(TokenType::Def)),
             "extern" => Ok(self.new_token(TokenType::Extern)),
+            "import" => Ok(self.new_token(TokenType::Import)),
             "if" => Ok(self.new_token(TokenType::If)),
             "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
@@ -192,6 +205,7 @@ impl<'a> Iterator for Lexer<'a> {
                 self.col = self.chars.get_col();
                 match c {
                     ' ' | '\r' | '\t' | '\n' => self.next(), // Skip whitespace
+                    '"' => Some(self.lex_string()),
                     'a'...'z' | 'A'...'Z' | '_' => Some(self.lex_identifier(c)),
                     '0'...'9' => Some(self.lex_number(c)),
                     '+' | '-' | '*' | '/' | '%' | '>' | '<' => Some(self.lex_operators(c)),

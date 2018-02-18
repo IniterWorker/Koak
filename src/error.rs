@@ -51,6 +51,7 @@ macro_rules! green {
 pub enum ErrorReason {
     UnknownChar(char),
     InvalidLitteralNum(String),
+    UnterminatedString,
     UnmatchedParenthesis,
     ExprExpected,
     ExpectedFuncName,
@@ -63,6 +64,7 @@ pub enum ErrorReason {
     MissingSemiColonAfterExtern,
     MissingSemiColonAfterDef,
     MissingSemiColonAfterTopLevelExpr,
+    MissingSemiColonAfterImport,
     ThenTokenExpected,
     ElseTokenExpected,
     ArgTypeExpected,
@@ -73,6 +75,9 @@ pub enum ErrorReason {
     IncompatibleUnaryOp(LLVMTypeRef),
     ExpectedNextArgOrCloseParenthesis,
     CantCastTo(LLVMTypeRef, LLVMTypeRef),
+    ModuleNameExpected,
+    CantOpenModule(String, String),
+    ModuleContainsErrors(String),
 }
 
 ///
@@ -85,6 +90,8 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Unknown char \'{}\'", purple!(c)),
             &ErrorReason::InvalidLitteralNum(ref s) =>
                 write!(f, "Invalid litteral number \"{}\"", purple!(s)),
+            &ErrorReason::UnterminatedString =>
+                write!(f, "Unterminated string"),
             &ErrorReason::UnmatchedParenthesis =>
                 write!(f, "Unmatched parenthesis"),
             &ErrorReason::ExprExpected =>
@@ -109,6 +116,8 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Missing semi-colon at the end of a function definition"),
             &ErrorReason::MissingSemiColonAfterTopLevelExpr =>
                 write!(f, "Missing semi-colon at the end of a top-level expression"),
+            &ErrorReason::MissingSemiColonAfterImport =>
+                write!(f, "Missing semi-colon at the end an import declaration"),
             &ErrorReason::ThenTokenExpected =>
                 write!(f, "\"{}\" is expected after an \"{}\"", purple!("then"), purple!("if")),
             &ErrorReason::ElseTokenExpected =>
@@ -129,6 +138,12 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Can't cast type \"{}\" to type \"{}\"", purple!(a.print_to_string()), purple!(b.print_to_string())),
             &ErrorReason::IncompatibleUnaryOp(ref a) =>
                 write!(f, "Invalid unary operator for type \"{}\"", purple!(a.print_to_string())),
+            &ErrorReason::ModuleNameExpected =>
+                write!(f, "Module name was expected"),
+            &ErrorReason::CantOpenModule(ref name, ref error) =>
+                write!(f, "Can't open module \"{}\": {}", purple!(name), error),
+            &ErrorReason::ModuleContainsErrors(ref name) =>
+                write!(f, "The module \"{}\" contains errors", purple!(name)),
         }
     }
 }
