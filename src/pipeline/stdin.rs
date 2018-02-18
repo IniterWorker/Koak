@@ -2,6 +2,8 @@
 //! Koak's stdin pipeline.
 //!
 
+use iron_llvm::core::Value;
+
 use args::Args;
 use lexer::Lexer;
 use parser::{Parser, ASTNode};
@@ -9,8 +11,6 @@ use error::print_errors;
 use input::{SourceInput, StdinSourceInput};
 use codegen::{IRContext, IRGenerator};
 use jit::JitModuleProvider;
-
-use iron_llvm::core::Value;
 
 use super::print_vec;
 
