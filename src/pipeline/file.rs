@@ -3,14 +3,11 @@
 //!
 
 use args::Args;
-use lexer::Lexer;
-use parser::Parser;
 use error::print_errors;
 use input::FileSourceInput;
-use codegen::{SimpleModuleProvider, IRModuleProvider, IRContext, IRGenerator};
+use codegen::{SimpleModuleProvider, IRModuleProvider};
 
-use super::print_vec;
-use super::module;
+use super::Pipeline;
 
 pub struct FilePipeline<'a> {
     input: FileSourceInput,
@@ -30,64 +27,37 @@ impl<'a> FilePipeline<'a> {
     /// Runs the Koak's whole pipeline.
     ///
     pub fn run(&mut self) -> bool {
-        let mut context = IRContext::new();
-        let mut module_provider = SimpleModuleProvider::from(&self.input.path, self.args.optimization);
-        let mut module_manager = module::ModuleManager::new();
+        let mut pipeline = Pipeline::new(self.args, SimpleModuleProvider::from(&self.input.path, self.args.optimization));
 
-        // Vector of errors
-        let mut errors = Vec::new();
+        // Pre-load modules
+        pipeline.preload_modules(|_| {});
+
+        // iterate on stdin
         let mut tokens = Vec::new();
-        let mut ast = Vec::new();
-        let mut ir = Vec::new();
-
-        // Iterate on lines
         for (row, line) in (&mut self.input).enumerate() {
-            for r in Lexer::new(&line, row + 1) { // Lexe input
-                match r {
-                    Ok(token) => tokens.push(token),
-                    Err(se) => errors.push(se),
-                }
-            }
+            tokens.append(&mut pipeline.run_lexer(&line, row));
         }
 
         if self.args.stop_after_lexer {
-            if errors.len() != 0 {
-                print_errors(self.args, &errors);
-            } else {
-                print_vec(&tokens);
-            }
-            return errors.len() != 0;
+            pipeline.print_errors_or_vec(&tokens);
+            return pipeline.errors.len() != 0;
         }
 
-        for r in Parser::new(&mut module_manager, tokens) {
-            match r {
-                Ok(mut nodes) => ast.append(&mut nodes),
-                Err(mut ses) => errors.append(&mut ses),
-            }
-        }
-
+        let nodes = pipeline.run_parser(tokens);
         if self.args.stop_after_parser {
-            if errors.len() != 0 {
-                print_errors(self.args, &errors);
-            } else {
-                print_vec(&ast);
-            }
-            return errors.len() != 0;
+            pipeline.print_errors_or_vec(&nodes);
+            return pipeline.errors.len() != 0;
         }
 
-        for r in ast.iter() {
-            match r.gen_ir(&mut context, &mut module_provider) {
-                Ok(i) => ir.push(i),
-                Err(se) => errors.push(se),
-            }
-        }
+        pipeline.generate_ir(nodes, |_| {});
 
-        if errors.len() != 0 {
-            print_errors(self.args, &errors);
-            true
-        } else {
-            module_provider.dump();
+        // print errors or dump code
+        if pipeline.errors.len() == 0 {
+            pipeline.module_provider.dump();
             false
+        } else {
+            print_errors(self.args, &pipeline.errors);
+            true
         }
     }
 }

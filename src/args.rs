@@ -14,6 +14,7 @@ pub struct Args {
     pub stop_after_parser: bool,
     pub optimization: bool,
     pub tiny_errors: bool,
+    pub preloaded_modules: Vec<String>,
 }
 
 impl Args {
@@ -24,9 +25,10 @@ impl Args {
         let mut opts = Options::new();
         opts.optflag("h", "help", "print this help menu");
         opts.optflag("v", "version", "print koak's version");
+        opts.optmulti("m", "module", "preloads the given module", "MODULE");
+        opts.optflag("O", "optimization", "enables various optimizations");
         opts.optflag("l", "lexer", "stops after lexing, dumping the generated tokens");
         opts.optflag("p", "parser", "stops after parsing, dumping the generated AST");
-        opts.optflag("O", "optimization", "enables various optimizations");
         opts.optflag("t", "tiny-errors", "makes errors less verbose");
 
         let matches = match opts.parse(&args[1..]) {
@@ -57,6 +59,7 @@ impl Args {
             stop_after_parser: matches.opt_present("p"),
             optimization: matches.opt_present("O"),
             tiny_errors: matches.opt_present("t"),
+            preloaded_modules: matches.opt_strs("m"),
         }
     }
 }
