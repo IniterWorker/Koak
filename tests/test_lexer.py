@@ -18,7 +18,8 @@ class UnknownCharTest(CustomLexerTestCase):
 
     def test_Unknown_char_1(self):
         self.stdin_append("'")
-        self.assertKoakLastErrorContain("Unknown char '''")
+        # self.assertKoakLastErrorContain("Unknown char '''")
+        self.assertKoakLastErrorContain("Invalid literal char")  # since typing char
 
     def test_Unknown_char_2(self):
         self.stdin_append("def x(&) x * x")
