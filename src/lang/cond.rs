@@ -92,7 +92,7 @@ impl IRGenerator for Cond {
 
         // Ensure if and else return value matches
         if then_value.get_type() != else_value.get_type() {
-            return Err(SyntaxError::from(&self.cond.token, ErrorReason::IfBodiesTypeDoesntMatch(then_value.get_type(), else_value.get_type())));
+            return Err(SyntaxError::from(&self.then_body.token, ErrorReason::IfBodiesTypeDoesntMatch(then_value.get_type(), else_value.get_type())));
         }
 
         // Set the return value depdends on the branch taken

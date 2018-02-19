@@ -129,7 +129,7 @@ impl fmt::Display for ErrorReason {
             &ErrorReason::InvalidType =>
                 write!(f, "Given type isn't valid"),
             &ErrorReason::IfBodiesTypeDoesntMatch(ref a, ref b) =>
-                write!(f, "If bodies's type doesn't match. Got \"{}\" on one side, and \"{}\" on the other one", purple!(a.print_to_string()), purple!(b.print_to_string())),
+                write!(f, "If bodies's type doesn't match. Got \"{}\" on one side, and \"{}\" on the other side", purple!(a.print_to_string()), purple!(b.print_to_string())),
             &ErrorReason::IncompatibleBinOp(ref lhs, ref rhs) =>
                 write!(f, "Invalid binary operator for type \"{}\" and \"{}\"", purple!(lhs.print_to_string()), purple!(rhs.print_to_string())),
             &ErrorReason::ExpectedNextArgOrCloseParenthesis =>

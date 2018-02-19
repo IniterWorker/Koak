@@ -2,11 +2,11 @@
 # Computes the x'th fibonacci number
 #
 
-def fib(x: int) -> int
-    if x < 3 then
-        1
+def fib(x: double) -> double
+    if x < 3.0 then
+        1.0
     else
-        fib(x - 1) + fib(x - 2)
+        fib(x - 1.0) + fib(x - 2.0)
 ;
 
-fib(42); # Computes the 40th number
+fib(42.0); # Computes the 40th number
