@@ -150,6 +150,26 @@ impl<'a> Lexer<'a> {
         Err(self.new_syntaxerror(ErrorReason::UnterminatedString))
     }
 
+    fn lex_char(&mut self) -> LexerResult {
+        let mut s = String::new();
+
+        while let Some(c) = self.chars.next() {
+            if c == '\'' {
+                let r = match (&s as &str, s.len()) {
+                    ("\\0", 2) => Ok(self.new_token(TokenType::CharLiteral('\0' as i8))),
+                    ("\\r", 2) => Ok(self.new_token(TokenType::CharLiteral('\r' as i8))),
+                    ("\\t", 2) => Ok(self.new_token(TokenType::CharLiteral('\t' as i8))),
+                    ("\\n", 2) => Ok(self.new_token(TokenType::CharLiteral('\n' as i8))),
+                    (_, 1) => Ok(self.new_token(TokenType::CharLiteral(s.pop().unwrap() as i8))),
+                    (_, _) => Err(self.new_syntaxerror(ErrorReason::InvalidCharLiteral(s))),
+                };
+                return r;
+            }
+            s.push(c);
+        }
+        Err(self.new_syntaxerror(ErrorReason::InvalidCharLiteral(s)))
+    }
+
     fn lex_identifier(&mut self, c: char) -> LexerResult {
         let mut s = c.to_string();
 
@@ -172,6 +192,7 @@ impl<'a> Lexer<'a> {
             "true" => Ok(self.new_token(TokenType::True)),
             "false" => Ok(self.new_token(TokenType::False)),
             "bool" => Ok(self.new_token(TokenType::Bool)),
+            "char" => Ok(self.new_token(TokenType::Char)),
             "int" => Ok(self.new_token(TokenType::Int)),
             "double" => Ok(self.new_token(TokenType::Double)),
             _ => Ok(self.new_token(TokenType::Identifier(Rc::new(s)))),
@@ -206,6 +227,7 @@ impl<'a> Iterator for Lexer<'a> {
                 match c {
                     ' ' | '\r' | '\t' | '\n' => self.next(), // Skip whitespace
                     '"' => Some(self.lex_string()),
+                    '\'' => Some(self.lex_char()),
                     'a'...'z' | 'A'...'Z' | '_' => Some(self.lex_identifier(c)),
                     '0'...'9' => Some(self.lex_number(c)),
                     '+' | '-' | '*' | '/' | '%' | '>' | '<' => Some(self.lex_operators(c)),

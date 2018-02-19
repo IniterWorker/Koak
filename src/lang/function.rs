@@ -173,7 +173,7 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxEr
             // Parse argument type
             parser.next_of(TokenType::Colon, ErrorReason::ArgTypeExpected)?;
             let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
-            args.push(ConcreteArg::new(arg_name, arg_token, ty.as_llvm_type()?));
+            args.push(ConcreteArg::new(arg_name, arg_token, types::KoakType::from(&ty)?.as_llvm_ref()));
 
             // Try to eat comma
             if let TokenType::Comma = parser.peek_or(ErrorReason::ExpectedNextArgOrCloseParenthesis)?.token_type {
@@ -182,7 +182,7 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxEr
         }
         parser.next_of(TokenType::CloseParenthesis, ErrorReason::UnmatchedParenthesis)?;
         parser.next_of(TokenType::Arrow, ErrorReason::RetTypeExpected)?;
-        let ret_type = parser.next_or(ErrorReason::ArgTypeExpected)?.as_llvm_type()?;
+        let ret_type = types::KoakType::from(&parser.next_or(ErrorReason::ArgTypeExpected)?)?.as_llvm_ref();
         Ok(ConcreteFunction::new(iden, func_name, args, ret_type, None))
     } else {
         Err(SyntaxError::from(&iden, ErrorReason::ExpectedFuncName))

@@ -33,6 +33,7 @@ lazy_static! {
 #[derive(Debug, Clone)]
 pub enum ExprType {
     BoolLiteral(bool),
+    CharLitteral(i8),
     IntegerLiteral(i32),
     DoubleLiteral(f64),
     Variable(Rc<String>),
@@ -120,6 +121,7 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     match expr.token_type {
         TokenType::True => Ok(Expr::new(expr, ExprType::BoolLiteral(true))),
         TokenType::False => Ok(Expr::new(expr, ExprType::BoolLiteral(false))),
+        TokenType::CharLiteral(c) => Ok(Expr::new(expr, ExprType::CharLitteral(c))),
         TokenType::DoubleLiteral(n) => Ok(Expr::new(expr, ExprType::DoubleLiteral(n))),
         TokenType::IntegerLiteral(n) => Ok(Expr::new(expr, ExprType::IntegerLiteral(n))),
         TokenType::OpenParenthesis => {
@@ -173,6 +175,7 @@ impl IRGenerator for Expr {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
         match self.expr_type {
             ExprType::BoolLiteral(b) => Ok(IntConstRef::get(&IntTypeRef::get_int1(), b as u64, true).to_ref()),
+            ExprType::CharLitteral(c) => Ok(IntConstRef::get(&IntTypeRef::get_int8(), c as u64, true).to_ref()),
             ExprType::IntegerLiteral(n) => Ok(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref()),
             ExprType::DoubleLiteral(n) => Ok(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref()),
             ExprType::Variable(ref s) => match context.get_var(s) {

@@ -5,12 +5,6 @@
 use std::rc::Rc;
 use std::fmt;
 
-use llvm_sys::prelude::LLVMTypeRef;
-
-use iron_llvm::core::types::{IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor};
-use iron_llvm::LLVMRef;
-use error::{SyntaxError, ErrorReason};
-
 use super::OperatorType;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,6 +18,7 @@ pub enum TokenType {
     Identifier(Rc<String>),
     IntegerLiteral(i32),
     DoubleLiteral(f64),
+    CharLiteral(i8),
     StringLitteral(String),
     OpenParenthesis,
     CloseParenthesis,
@@ -32,6 +27,7 @@ pub enum TokenType {
     Colon,
     Arrow,
     Int,
+    Char,
     Double,
     Bool,
     True,
@@ -65,15 +61,6 @@ impl Token {
             line: line,
             row: row,
             col: col,
-        }
-    }
-
-    pub fn as_llvm_type(&self) -> Result<LLVMTypeRef, SyntaxError> {
-        match self.token_type {
-            TokenType::Bool => Ok(IntTypeRef::get_int1().to_ref()),
-            TokenType::Int => Ok(IntTypeRef::get_int32().to_ref()),
-            TokenType::Double => Ok(RealTypeRef::get_double().to_ref()),
-            _ => Err(SyntaxError::from(self, ErrorReason::InvalidType)),
         }
     }
 }

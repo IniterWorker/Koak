@@ -13,11 +13,12 @@ use iron_llvm::core::types::{IntType, IntTypeRef, IntTypeCtor, RealTypeRef, Real
 
 use error::{ErrorReason, SyntaxError};
 use codegen::{IRContext, IRResult};
-use lexer::Token;
+use lexer::{Token, TokenType};
 
 #[derive(Debug)]
 pub enum KoakType {
     Bool,
+    Char,
     Int,
     Double,
 }
@@ -27,8 +28,20 @@ impl KoakType {
     pub fn as_llvm_ref(&self) -> LLVMTypeRef {
         match self {
             &KoakType::Bool => IntTypeRef::get_int1().to_ref(),
+            &KoakType::Char => IntTypeRef::get_int8().to_ref(),
             &KoakType::Int => IntTypeRef::get_int32().to_ref(),
             &KoakType::Double => RealTypeRef::get_double().to_ref(),
+        }
+    }
+
+    #[inline]
+    pub fn from(token: &Token) -> Result<KoakType, SyntaxError> {
+        match token.token_type {
+            TokenType::Bool => Ok(KoakType::Bool),
+            TokenType::Char => Ok(KoakType::Char),
+            TokenType::Int => Ok(KoakType::Int),
+            TokenType::Double => Ok(KoakType::Double),
+            _ => Err(SyntaxError::from(token, ErrorReason::InvalidType)),
         }
     }
 }
@@ -41,6 +54,7 @@ impl Into<KoakType> for LLVMTypeRef {
                 let int = unsafe { IntTypeRef::from_ref(self) };
                 match int.get_width() {
                     1 => KoakType::Bool,
+                    8 => KoakType::Char,
                     32 => KoakType::Int,
                     _ => panic!("Unknown integer width"),
                 }
@@ -54,23 +68,30 @@ impl Into<KoakType> for LLVMTypeRef {
 /// Does nothing if `val` is already of type `ty`.
 ///
 pub fn cast_to(val: LLVMValueRef, ty: LLVMTypeRef, context: &mut IRContext) -> IRResult {
-    let tmp : KoakType = val.get_type().into();
-    let tmp2 : KoakType = ty.into();
-    println!("Casting {:?} to {:?}", tmp, tmp2);
     match (val.get_type().into(), ty.into()) {
         (KoakType::Bool, KoakType::Bool) => Ok(val),
+        (KoakType::Bool, KoakType::Char) => Ok(context.builder.build_zext(val, ty, "cast_i1_i8")),
         (KoakType::Bool, KoakType::Int) => Ok(context.builder.build_zext(val, ty, "cast_i1_i32")),
         (KoakType::Bool, KoakType::Double) => Ok(context.builder.build_ui_to_fp(val, ty, "cast_i1_double")),
+        (KoakType::Char, KoakType::Bool) => {
+            let zero = IntConstRef::get(&IntTypeRef::get_int8(), 0, true).to_ref();
+            Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, val, zero, "cast_i8_i1"))
+        },
+        (KoakType::Char, KoakType::Char) => Ok(val),
+        (KoakType::Char, KoakType::Int) => Ok(context.builder.build_zext(val, ty, "cast_i8_i32")),
+        (KoakType::Char, KoakType::Double) => Ok(context.builder.build_si_to_fp(val, ty, "cast_i8_double")),
         (KoakType::Int, KoakType::Bool) => {
             let zero = IntConstRef::get(&IntTypeRef::get_int32(), 0, true).to_ref();
             Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, val, zero, "cast_i32_i1"))
         },
+        (KoakType::Int, KoakType::Char) => Ok(context.builder.build_trunc(val, ty, "cast_i32_i8")),
         (KoakType::Int, KoakType::Int) => Ok(val),
         (KoakType::Int, KoakType::Double) => Ok(context.builder.build_si_to_fp(val, ty, "cast_i32_double")),
         (KoakType::Double, KoakType::Bool) => {
             let zero = RealConstRef::get(&RealTypeRef::get_double(), 0.0).to_ref();
             Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, val, zero, "cast_double_i1"))
         },
+        (KoakType::Double, KoakType::Char) => Ok(context.builder.build_fp_to_si(val, ty, "cast_double_i8")),
         (KoakType::Double, KoakType::Int) => Ok(context.builder.build_fp_to_si(val, ty, "cast_double_i32")),
         (KoakType::Double, KoakType::Double) => Ok(val),
     }
