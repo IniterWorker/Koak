@@ -34,35 +34,53 @@ cargo run
 
 # Examples
 
+```koak
+#
+# Computes the x'th fibonacci number
+#
+
+def fib(x: double) -> double
+    if x < 3.0 then
+        1.0
+    else
+        fib(x - 1.0) + fib(x - 2.0)
+;
+```
+
 ```llvm
 $ cargo run
->> def fib(x) if x < 3 then 1 else fib(x - 1) + fib(x - 2);
-
+>> import "examples/fib";
 define double @fib(double %x) {
 entry:
-  %cmptmp = fcmp olt double %x, 3.000000e+00
-  %casttmp = uitofp i1 %cmptmp to double
-  %cond = fcmp one double %casttmp, 0.000000e+00
+  %fcmptmp = fcmp olt double %x, 3.000000e+00
+  %cond = icmp ne i1 %fcmptmp, false
   br i1 %cond, label %then, label %else
 
 then:                                             ; preds = %entry
   br label %merge
 
 else:                                             ; preds = %entry
-  %subtmp = fsub double %x, 1.000000e+00
-  %calltmp = call double @fib(double %subtmp)
-  %subtmp1 = fsub double %x, 2.000000e+00
-  %calltmp2 = call double @fib(double %subtmp1)
-  %addtmp = fadd double %calltmp, %calltmp2
+  %fsubtmp = fsub double %x, 1.000000e+00
+  %calltmp = call double @fib(double %fsubtmp)
+  %fsubtmp1 = fsub double %x, 2.000000e+00
+  %calltmp2 = call double @fib(double %fsubtmp1)
+  %faddtmp = fadd double %calltmp, %calltmp2
   br label %merge
 
 merge:                                            ; preds = %else, %then
-  %ifphi = phi double [ 1.000000e+00, %then ], [ %addtmp, %else ]
+  %ifphi = phi double [ 1.000000e+00, %then ], [ %faddtmp, %else ]
   ret double %ifphi
 }
 
->> fib(40);
-102334155
+
+define double @"__0$"() {
+entry:
+  %calltmp = call double @fib(double 4.200000e+01)
+  ret double %calltmp
+}
+
+>> fib(42);
+=> 267914296
 ```
 
 # Roadmap
@@ -79,9 +97,9 @@ merge:                                            ; preds = %else, %then
   - [X] Control flow (`if`/`then`/`else`)
   - [ ] Loops (`for`/`while`)
   - [ ] Mutable variables
-  - [ ] Type system (`void`, `char`, `int`, `double` etc.)
-  - [ ] Type inference
+  - [X] Type system (`void`, `bool`, `char`, `int`, `double` etc.)
   - [ ] Strings
+  - [X] Module system (`import`)
 - [ ] Execution and compilation
   - [X] JIT Integration
   - [ ] Compilation into object file (.o)
