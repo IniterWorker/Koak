@@ -2,16 +2,9 @@
 //! Koak's stdin pipeline.
 //!
 
-use llvm_sys::prelude::LLVMValueRef;
-
-use iron_llvm::core::Value;
-
-
 use args::Args;
-use error::print_errors;
 use input::{SourceInput, StdinSourceInput};
 use jit::JitModuleProvider;
-use codegen::IRModuleProvider;
 
 use super::Pipeline;
 
