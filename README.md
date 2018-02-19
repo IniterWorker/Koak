@@ -72,13 +72,6 @@ merge:                                            ; preds = %else, %then
   ret double %ifphi
 }
 
-
-define double @"__0$"() {
-entry:
-  %calltmp = call double @fib(double 4.200000e+01)
-  ret double %calltmp
-}
-
 >> fib(42);
 => 267914296
 ```
