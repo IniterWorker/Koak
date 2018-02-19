@@ -88,7 +88,7 @@ impl fmt::Debug for ConcreteFunction {
                 write!(f, ", {:?}", arg)?;
             }
         }
-        write!(f, ") -> {}", self.ret.print_to_string())
+        write!(f, ") -> {}, {:?}", self.ret.print_to_string(), self.body)
     }
 }
 
