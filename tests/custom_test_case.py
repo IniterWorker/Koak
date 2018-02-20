@@ -1,4 +1,4 @@
-from enum import Enum, unique, auto
+from enum import Enum, unique
 import logging
 from unittest import TestCase, main, TestResult
 
@@ -7,20 +7,20 @@ from helper.popen import *
 
 
 class Orientation(Enum):
-    START_FIRST = auto()
-    START_END = auto()
+    START_FIRST = 1
+    START_END = 2
 
 
 class InputType(Enum):
-    FILE = auto()
-    PIPE = auto()
+    FILE = 1
+    PIPE = 2
 
 
 class Stream(Enum):
-    STDIN = auto()
-    STDOUT = auto()
-    STDERR = auto()
-    STDOUT_AND_STDERR = auto()
+    STDIN = 1
+    STDOUT = 2
+    STDERR = 3
+    STDOUT_AND_STDERR = 4
 
 
 def safe_len(o: list) -> int:

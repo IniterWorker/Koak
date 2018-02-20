@@ -18,7 +18,7 @@ class ParserTest(ParserCustomTestCase):
     def test_extern_prototype_ok_empty_args(self):
         self.stdin_append("extern x() -> int;")
         self.stdout_expected([
-            "FunctionDef(x () -> i32)",
+            "FunctionDef(x () -> i32, None)",
         ])
         self.assertKoakListEqual()
         self.assertKoakZeroError()
@@ -26,7 +26,7 @@ class ParserTest(ParserCustomTestCase):
     def test_extern_prototype_ok_1_args(self):
         self.stdin_append("extern x(x: double) -> int;")
         self.stdout_expected([
-            "FunctionDef(x (x: double) -> i32)",
+            "FunctionDef(x (x: double) -> i32, None)",
         ])
         self.assertKoakListEqual()
         self.assertKoakZeroError()
@@ -34,7 +34,7 @@ class ParserTest(ParserCustomTestCase):
     def test_extern_prototype_ok_2_args(self):
         self.stdin_append("extern x(x: bool, y: int) -> double;")
         self.stdout_expected([
-            "FunctionDef(x (x: i1, y: i32) -> double)",
+            "FunctionDef(x (x: i1, y: i32) -> double, None)",
         ])
         self.assertKoakListEqual()
         self.assertKoakZeroError()
@@ -222,13 +222,13 @@ class DefinitionTest(ParserCustomTestCase):
 
     def test_def_fib(self):
         self.stdin_append("def fib(x: double) -> double if x < 3 then 1 else fib(x - 1) + fib(x - 2) ;")
-        self.stdout_expected("FuncDef(fib, [\"x\"], "
-                             "Condition(Binary(Less, Variable(\"x\"), Number(3.0)), "
+        self.stdout_expected("FunctionDef(fib, (x: double) -> double, "
+                             "Some(Condition(Binary(Less, Variable(\"x\"), DoubleLiteral(3)), "
                              "DoubleLiteral(1.0), "  # return 1
                              "Binary(Add, "  # compute big
-                             "Call(\"fib\", [Binary(Sub, Variable(\"x\"), DoubleLiteral(1.0))]), "
-                             "Call(\"fib\", [Binary(Sub, Variable(\"x\"), Number(2.0))])"
-                             ")))")
+                             "Call(\"fib\", [Binary(Sub, Variable(\"x\"), IntegerLiteral(1))]), "
+                             "Call(\"fib\", [Binary(Sub, Variable(\"x\"), IntegerLiteral(2))])"
+                             "))))")
         self.assertKoakZeroError()
         self.assertKoakListEqual()
 
