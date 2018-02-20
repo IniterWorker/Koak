@@ -219,7 +219,7 @@ impl IRGenerator for Expr {
                         let cast_arg = types::cast_to(&arg.token, arg_val, wanted_type.ty, context)?;
                         args_value.push(cast_arg);
                     }
-                    let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap();
+                    let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap().0;
                     if let KoakType::Void = func.ret {
                         Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), ""))
                     } else {

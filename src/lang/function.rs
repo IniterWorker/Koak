@@ -102,8 +102,8 @@ impl IRGenerator for ConcreteFunction {
 
         // Find function with same name
         let mut func = match module_provider.get_llvm_funcref_by_name(&self.name) {
-            Some(prev_def) => { // Function already defined. This is ok only if there is no implementation yet.
-                if prev_def.count_basic_blocks() > 0 {
+            Some((prev_def, have_body)) => { // Function already defined. This is ok only if there is no implementation yet.
+                if have_body {
                     return Err(SyntaxError::from(&self.token, ErrorReason::RedefinedFunc((*self.name).clone())));
                 } else if prev_def.count_params() as usize != self.args.len() {
                     return Err(SyntaxError::from(&self.token, ErrorReason::RedefinedFuncWithDiffArgs((*self.name).clone())));

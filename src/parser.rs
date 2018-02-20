@@ -31,10 +31,13 @@ impl IRGenerator for ASTNode {
         match self {
             &ASTNode::FunctionDef(ref func) => {
                 context.push_scope();
-                context.functions.insert(func.name.clone(), func.clone());
+                let old = context.functions.insert(func.name.clone(), func.clone());
                 let r = func.gen_ir(context, module_provider);
                 if r.is_err() {
-                    context.functions.remove(&*func.name);
+                    match old { // Roll back `context.functions`.
+                        Some(old_func) => context.functions.insert(func.name.clone(), old_func),
+                        None => context.functions.remove(&*func.name),
+                    };
                 }
                 context.pop_scope();
                 r

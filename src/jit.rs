@@ -98,7 +98,11 @@ impl IRModuleProvider for JitModuleProvider {
         &mut self.current_module
     }
 
-    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<FunctionRef> {
+    ///
+    /// Looks for the given function. Returns the function and boolean saying if this
+    /// is a protoype (the function is defined elsewhere) or the real definition.
+    ///
+    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
         // Search old modules first
         for module in self.compiled_modules.iter() {
             match module.get().get_function_by_name(name) {
@@ -115,16 +119,13 @@ impl IRModuleProvider for JitModuleProvider {
                             FunctionRef::new(&mut self.current_module, name, &fty)
                         }
                     };
-
-                    if func.count_basic_blocks() > 0 {
-                        return Some(proto);
-                    }
+                    return Some((proto, func.count_basic_blocks() > 0));
                 },
                 None => (),
             };
         }
         // If not found, Search current module
-        self.current_module.get_function_by_name(name)
+        self.current_module.get_function_by_name(name).map(|e| (e, e.count_basic_blocks() > 0))
     }
 
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
