@@ -1,4 +1,5 @@
-# Kind Of Alternative Kaleidoscope
+# Kind Of Alternative Kaleidoscope [![Build Status](https://travis-ci.org/Arignir/koak.svg?branch=master)](https://travis-ci.org/Arignir/koak)
+
 
 This is (kind of) a Kaleidoscope compiler, written in Rust.
 
