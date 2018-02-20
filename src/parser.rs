@@ -4,12 +4,15 @@
 
 use std::rc::Rc;
 
+use llvm_sys::core::LLVMDeleteFunction;
+
 use lexer::{Token, TokenType};
 use error::{SyntaxError, ErrorReason};
 use lang::expr::{Expr, parse_expr};
 use lang::function::{ConcreteFunction, parse_func_def, parse_extern_func};
 use codegen::{IRContext, IRGenerator, IRModuleProvider, IRResult};
 use pipeline::module;
+use lang::types::KoakType;
 
 pub type ParserResult = Result<Vec<ASTNode>, Vec<SyntaxError>>;
 
@@ -37,7 +40,17 @@ impl IRGenerator for ASTNode {
                 r
             }
             &ASTNode::TopLevelExpr(ref expr) => {
-                ConcreteFunction::new_anonymous((*expr).clone()).gen_ir(context, module_provider)
+                // This is a bit dirty, but i didn't find a better way
+                let anon1 = ConcreteFunction::new_anonymous((*expr).clone(), KoakType::Void, false);
+                let func = anon1.gen_ir(context, module_provider)?;
+                if let Some(x) = anon1.body_type.into_inner() {
+                    unsafe { LLVMDeleteFunction(func); }
+                    let anon2 = ConcreteFunction::new_anonymous((*expr).clone(), x, true);
+                    let tmp = anon2.gen_ir(context, module_provider)?;
+                    Ok(tmp)
+                } else {
+                    panic!("Top level expression has an unknown type");
+                }
             }
         }
     }

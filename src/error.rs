@@ -79,6 +79,7 @@ pub enum ErrorReason {
     ModuleNameExpected,
     CantOpenModule(String, String),
     ModuleContainsErrors(String),
+    VoidOnlyReturnType,
 }
 
 ///
@@ -147,6 +148,8 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Can't open module \"{}\": {}", purple!(name), error),
             &ErrorReason::ModuleContainsErrors(ref name) =>
                 write!(f, "The module \"{}\" contains errors", purple!(name)),
+            &ErrorReason::VoidOnlyReturnType =>
+                write!(f, "The \"{}\" type can only be used as a return type of a function", purple!("void")),
         }
     }
 }

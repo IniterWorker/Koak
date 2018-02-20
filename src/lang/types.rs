@@ -9,14 +9,15 @@ use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
 use iron_llvm::{LLVMRef, LLVMRefCtor};
 use iron_llvm::core::value::{Value, RealConstRef, IntConstRef, RealConstCtor, IntConstCtor};
-use iron_llvm::core::types::{IntType, IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor, Type};
+use iron_llvm::core::types::{IntType, IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor, VoidTypeRef, VoidTypeCtor, Type};
 
 use error::{ErrorReason, SyntaxError};
 use codegen::{IRContext, IRResult};
 use lexer::{Token, TokenType};
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum KoakType {
+    Void,
     Bool,
     Char,
     Int,
@@ -27,6 +28,7 @@ impl KoakType {
     #[inline]
     pub fn as_llvm_ref(&self) -> LLVMTypeRef {
         match self {
+            &KoakType::Void => VoidTypeRef::get().to_ref(),
             &KoakType::Bool => IntTypeRef::get_int1().to_ref(),
             &KoakType::Char => IntTypeRef::get_int8().to_ref(),
             &KoakType::Int => IntTypeRef::get_int32().to_ref(),
@@ -37,6 +39,7 @@ impl KoakType {
     #[inline]
     pub fn from(token: &Token) -> Result<KoakType, SyntaxError> {
         match token.token_type {
+            TokenType::Void => Ok(KoakType::Void),
             TokenType::Bool => Ok(KoakType::Bool),
             TokenType::Char => Ok(KoakType::Char),
             TokenType::Int => Ok(KoakType::Int),
@@ -49,6 +52,7 @@ impl KoakType {
 impl Into<KoakType> for LLVMTypeRef {
     fn into(self) -> KoakType {
         match self.get_kind() {
+            LLVMTypeKind::LLVMVoidTypeKind => KoakType::Void,
             LLVMTypeKind::LLVMDoubleTypeKind => KoakType::Double,
             LLVMTypeKind::LLVMIntegerTypeKind => {
                 let int = unsafe { IntTypeRef::from_ref(self) };
@@ -59,6 +63,7 @@ impl Into<KoakType> for LLVMTypeRef {
                     _ => panic!("Unknown integer width"),
                 }
             }
+            LLVMTypeKind::LLVMFunctionTypeKind => panic!("Woops func"),
             _ => panic!("Unknown value type"),
         }
     }
@@ -67,7 +72,7 @@ impl Into<KoakType> for LLVMTypeRef {
 /// Try to cast `val` to `ty`.
 /// Does nothing if `val` is already of type `ty`.
 ///
-pub fn cast_to(val: LLVMValueRef, ty: LLVMTypeRef, context: &mut IRContext) -> IRResult {
+pub fn cast_to(token: &Token, val: LLVMValueRef, ty: LLVMTypeRef, context: &mut IRContext) -> IRResult {
     match (val.get_type().into(), ty.into()) {
         (KoakType::Bool, KoakType::Bool) => Ok(val),
         (KoakType::Bool, KoakType::Char) => Ok(context.builder.build_zext(val, ty, "cast_i1_i8")),
@@ -94,6 +99,7 @@ pub fn cast_to(val: LLVMValueRef, ty: LLVMTypeRef, context: &mut IRContext) -> I
         (KoakType::Double, KoakType::Char) => Ok(context.builder.build_fp_to_si(val, ty, "cast_double_i8")),
         (KoakType::Double, KoakType::Int) => Ok(context.builder.build_fp_to_si(val, ty, "cast_double_i32")),
         (KoakType::Double, KoakType::Double) => Ok(val),
+        _ => Err(SyntaxError::from(token, ErrorReason::CantCastTo(val.get_type(), ty))),
     }
 }
 
@@ -114,7 +120,8 @@ pub fn calculate_common(lhs: LLVMValueRef, rhs: LLVMValueRef) -> Option<LLVMType
         }
         (LLVMTypeKind::LLVMDoubleTypeKind, LLVMTypeKind::LLVMIntegerTypeKind) => Some(lhs.get_type()),
         (LLVMTypeKind::LLVMIntegerTypeKind, LLVMTypeKind::LLVMDoubleTypeKind) => Some(rhs.get_type()),
-        _ => Some(lhs.get_type()),
+        (LLVMTypeKind::LLVMDoubleTypeKind, LLVMTypeKind::LLVMDoubleTypeKind) => Some(lhs.get_type()),
+        _ => None,
     }
 }
 
@@ -122,8 +129,8 @@ macro_rules! binop {
     ( $context:expr, $lhs:expr, $rhs:expr, $token:expr ) => {
         match calculate_common($lhs, $rhs) {
             Some(ty) => {
-                let _lhs = cast_to($lhs, ty, $context)?;
-                let _rhs = cast_to($rhs, ty, $context)?;
+                let _lhs = cast_to($token, $lhs, ty, $context)?;
+                let _rhs = cast_to($token, $rhs, ty, $context)?;
                 Ok((ty.get_kind(), _lhs, _rhs))
             },
             None => Err(SyntaxError::from($token, ErrorReason::IncompatibleBinOp($lhs.get_type(), $rhs.get_type())))

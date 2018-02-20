@@ -17,6 +17,7 @@ use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
 use lang::cond::{Cond, parse_cond};
 use lang::types::KoakCalculable;
 use lang::types;
+use lang::types::KoakType;
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -215,11 +216,15 @@ impl IRGenerator for Expr {
                     let mut args_value = Vec::new();
                     for (arg, wanted_type) in args.iter().zip(func.args.iter()) {
                         let arg_val = arg.gen_ir(context, module_provider)?;
-                        let cast_arg = types::cast_to(arg_val, wanted_type.ty, context)?;
+                        let cast_arg = types::cast_to(&arg.token, arg_val, wanted_type.ty, context)?;
                         args_value.push(cast_arg);
                     }
                     let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap();
-                    Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))
+                    if let KoakType::Void = func.ret {
+                        Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), ""))
+                    } else {
+                        Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))
+                    }
                 } else {
                     Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.args.len() as usize, args.len())))
                 }

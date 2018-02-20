@@ -13,10 +13,11 @@ use iron_llvm::execution_engine::{ExecutionEngine, MCJITBuilder};
 use iron_llvm::execution_engine::execution_engine::FrozenModule;
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value};
 use iron_llvm::core::types::{FunctionType, FunctionTypeRef};
-use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
+use iron_llvm::core::types::{RealTypeCtor, RealTypeRef, IntTypeCtor, IntTypeRef};
 
 use codegen;
 use codegen::IRModuleProvider;
+use lang::types::KoakType;
 
 pub struct JitModuleProvider {
     module_name: String,
@@ -70,10 +71,18 @@ impl JitModuleProvider {
     ///
     /// This function asserts the module containg the given function has been freezed.
     ///
-    pub fn run_function(&mut self, f: LLVMValueRef) -> f64 {
-        let f = unsafe { FunctionRef::from_ref(f) };
-        let res = self.exec_engine.run_function(&f, Vec::new().as_mut_slice());
-        res.to_float(&RealTypeRef::get_double())
+    pub fn run_function(&mut self, func: LLVMValueRef) {
+        let func = unsafe { FunctionRef::from_ref(func) };
+        let res = self.exec_engine.run_function(&func, Vec::new().as_mut_slice());
+        let fty = unsafe { FunctionTypeRef::from_ref(func.get_type().to_ref()) };
+        let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
+        match fty.get_return_type().to_ref().into() {
+            KoakType::Bool => println!("=> {}", res.to_int(false) != 0),
+            KoakType::Char => println!("=> {}", res.to_int(true) as u8 as char),
+            KoakType::Int => println!("=> {}", res.to_int(true) as i32),
+            KoakType::Double => println!("=> {}", res.to_float(&RealTypeRef::get_double())),
+            _ => (),
+        }
     }
 }
 
