@@ -92,7 +92,7 @@ impl fmt::Debug for ConcreteFunction {
                 write!(f, ", {:?}", arg)?;
             }
         }
-        write!(f, ") -> {}", self.ret.as_llvm_ref().print_to_string())
+        write!(f, ") -> {}, {:?}", self.ret.as_llvm_ref().print_to_string(), self.body)
     }
 }
 
@@ -165,32 +165,6 @@ impl IRGenerator for ConcreteFunction {
         }
         Ok(func.to_ref())
     }
-}
-
-pub struct TopLevelFunction {
-    pub name: String,
-    pub body: Expr,
-    pub ret: KoakType,
-}
-
-impl TopLevelFunction {
-    #[inline]
-    pub fn new(body: Expr, ret: KoakType) -> TopLevelFunction {
-        static mut NB_ANON: u64 = 0;
-
-        let mut name = String::from("__"); // Create unique name for anonymous function
-        unsafe {
-            name += &NB_ANON.to_string();
-            name += "$"; // Prevent the name from being taken by a user-defined function
-            NB_ANON += 1;
-        }
-        TopLevelFunction {
-            name: name,
-            body: body,
-            ret: ret
-        }
-    }
-
 }
 
 pub fn parse_prototype(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxError> {

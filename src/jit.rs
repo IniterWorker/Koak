@@ -13,7 +13,7 @@ use iron_llvm::execution_engine::{ExecutionEngine, MCJITBuilder};
 use iron_llvm::execution_engine::execution_engine::FrozenModule;
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value};
 use iron_llvm::core::types::{FunctionType, FunctionTypeRef};
-use iron_llvm::core::types::{RealTypeCtor, RealTypeRef, IntTypeCtor, IntTypeRef};
+use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
 
 use codegen;
 use codegen::IRModuleProvider;

@@ -21,7 +21,6 @@ use parser::{Parser, ASTNode};
 use error::{print_errors, SyntaxError};
 use codegen::{IRContext, IRGenerator, IRModuleProvider};
 use jit::JitModuleProvider;
-use lang::types::KoakType;
 use self::module::ModuleManager;
 
 pub struct Pipeline<'a, T: IRModuleProvider> {
