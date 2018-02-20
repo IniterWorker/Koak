@@ -83,7 +83,7 @@ class RedefinitionDefinitionTests(JITCustomTestCase):
             "5;",
             "def f(x: int) -> int x;"
         ])
-        self.assertKoakZeroError()
+        self.assertKoakLastErrorContain("Redefinition of function \"f\"")
 
 
 class UnaryOperatorTest(JITCustomTestCase):

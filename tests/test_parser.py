@@ -222,9 +222,9 @@ class DefinitionTest(ParserCustomTestCase):
 
     def test_def_fib(self):
         self.stdin_append("def fib(x: double) -> double if x < 3 then 1 else fib(x - 1) + fib(x - 2) ;")
-        self.stdout_expected("FunctionDef(fib, (x: double) -> double, "
-                             "Some(Condition(Binary(Less, Variable(\"x\"), DoubleLiteral(3)), "
-                             "DoubleLiteral(1.0), "  # return 1
+        self.stdout_expected("FunctionDef(fib (x: double) -> double, "
+                             "Some(Condition(Binary(Less, Variable(\"x\"), IntegerLiteral(3)), "
+                             "IntegerLiteral(1), "  # return 1
                              "Binary(Add, "  # compute big
                              "Call(\"fib\", [Binary(Sub, Variable(\"x\"), IntegerLiteral(1))]), "
                              "Call(\"fib\", [Binary(Sub, Variable(\"x\"), IntegerLiteral(2))])"
