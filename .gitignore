@@ -12,3 +12,6 @@ Cargo.lock
 
 mandelset.koak
 TODO
+
+.idea
+koak.iml
