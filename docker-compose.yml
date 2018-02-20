@@ -1,0 +1,15 @@
+version: '2'
+
+services:
+  unittest:
+    build: .
+    command: bash -c 'cd /koak && cargo build && cd tests && python3 -m unittestcolor discover -s . -t . -p "test_*"'
+    volumes:
+      - .:/koak
+  os:
+    build: .
+    stdin_open: true
+    tty: true
+    command: bash
+    volumes:
+      - ./koak
