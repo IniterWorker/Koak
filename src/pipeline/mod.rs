@@ -124,7 +124,7 @@ impl<'a> Pipeline<'a, JitModuleProvider> {
                     ir.dump();
                 }
                 for func in exprs {
-                    println!("=> {}", self.module_provider.run_function(func));
+                    self.module_provider.run_function(func);
                 }
             } else {
                 print_errors(self.args, &self.errors);

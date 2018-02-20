@@ -9,6 +9,7 @@ use llvm_sys::prelude::LLVMValueRef;
 
 use iron_llvm::core;
 use iron_llvm::core::value::FunctionRef;
+use iron_llvm::core::Function;
 
 use error::SyntaxError;
 use lang::function::ConcreteFunction;
@@ -74,7 +75,7 @@ pub trait IRGenerator {
 pub trait IRModuleProvider {
     fn dump(&self);
     fn get_module(&mut self) -> &mut core::Module;
-    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<FunctionRef>;
+    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<(FunctionRef, bool)>;
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager;
 }
 
@@ -104,8 +105,8 @@ impl IRModuleProvider for SimpleModuleProvider {
         &mut self.module
     }
 
-    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<FunctionRef> {
-        self.module.get_function_by_name(name)
+    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
+        self.module.get_function_by_name(name).map(|e| (e, e.count_basic_blocks() > 0))
     }
 
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {

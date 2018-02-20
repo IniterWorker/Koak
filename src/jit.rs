@@ -17,6 +17,7 @@ use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
 
 use codegen;
 use codegen::IRModuleProvider;
+use lang::types::KoakType;
 
 pub struct JitModuleProvider {
     module_name: String,
@@ -70,10 +71,18 @@ impl JitModuleProvider {
     ///
     /// This function asserts the module containg the given function has been freezed.
     ///
-    pub fn run_function(&mut self, f: LLVMValueRef) -> f64 {
-        let f = unsafe { FunctionRef::from_ref(f) };
-        let res = self.exec_engine.run_function(&f, Vec::new().as_mut_slice());
-        res.to_float(&RealTypeRef::get_double())
+    pub fn run_function(&mut self, func: LLVMValueRef) {
+        let func = unsafe { FunctionRef::from_ref(func) };
+        let res = self.exec_engine.run_function(&func, Vec::new().as_mut_slice());
+        let fty = unsafe { FunctionTypeRef::from_ref(func.get_type().to_ref()) };
+        let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
+        match fty.get_return_type().to_ref().into() {
+            KoakType::Bool => println!("=> {}", res.to_int(false) != 0),
+            KoakType::Char => println!("=> {}", res.to_int(true) as u8 as char),
+            KoakType::Int => println!("=> {}", res.to_int(true) as i32),
+            KoakType::Double => println!("=> {}", res.to_float(&RealTypeRef::get_double())),
+            _ => (),
+        }
     }
 }
 
@@ -89,7 +98,11 @@ impl IRModuleProvider for JitModuleProvider {
         &mut self.current_module
     }
 
-    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<FunctionRef> {
+    ///
+    /// Looks for the given function. Returns the function and boolean saying if this
+    /// is a protoype (the function is defined elsewhere) or the real definition.
+    ///
+    fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
         // Search old modules first
         for module in self.compiled_modules.iter() {
             match module.get().get_function_by_name(name) {
@@ -106,16 +119,13 @@ impl IRModuleProvider for JitModuleProvider {
                             FunctionRef::new(&mut self.current_module, name, &fty)
                         }
                     };
-
-                    if func.count_basic_blocks() > 0 {
-                        return Some(proto);
-                    }
+                    return Some((proto, func.count_basic_blocks() > 0));
                 },
                 None => (),
             };
         }
         // If not found, Search current module
-        self.current_module.get_function_by_name(name)
+        self.current_module.get_function_by_name(name).map(|e| (e, e.count_basic_blocks() > 0))
     }
 
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
