@@ -1,26 +1,23 @@
-sudo: required
-
 language: rust
 
-rust:
-  - nightly
+rust: nightly
+
+os:
+  - linux
+
+env: CLANG_VERSION=3.9 LIBCXX=On
+  - PATH=/usr/lib/llvm-3.9/bin/:/usr/bin/:$PATH
 
 addons:
   apt:
-    packages:
-      - python3
-
-matrix:
-  allow_failures:
-    - rust: nightly
+    sources: ['ubuntu-toolchain-r-test', 'llvm-toolchain-trusty-3.9']
+    packages: ['gcc-6', 'g++-6', 'llvm-3.9', 'llvm-3.9-dev', 'llvm-3.9-runtime', 'python3']
 
 cache: cargo
 
-before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -y llvm-3.8-dev
-
 script:
-  - cargo build
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
+  - cargo build --verbose
   - cd tests
   - python3 -m unittestcolor discover -s . -t . -p "test_*"
