@@ -208,6 +208,14 @@ impl<'a> Lexer<'a> {
                 self.chars.next();
                 Ok(self.new_token(TokenType::Arrow))
             }
+            ('=', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::Equal)))
+            },
+            ('!', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::Different)))
+            },
             ('+', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Add))),
             ('-', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Sub))),
             ('*', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Mul))),
@@ -234,7 +242,7 @@ impl<'a> Iterator for Lexer<'a> {
                     '\'' => Some(self.lex_char()),
                     'a'...'z' | 'A'...'Z' | '_' => Some(self.lex_identifier(c)),
                     '0'...'9' => Some(self.lex_number(c)),
-                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' => Some(self.lex_operators(c)),
+                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' => Some(self.lex_operators(c)),
                     '(' => Some(Ok(self.new_token(TokenType::OpenParenthesis))),
                     ')' => Some(Ok(self.new_token(TokenType::CloseParenthesis))),
                     ',' => Some(Ok(self.new_token(TokenType::Comma))),

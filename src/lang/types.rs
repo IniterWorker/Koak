@@ -150,6 +150,8 @@ pub trait KoakCalculable {
     fn rem(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
     fn lt(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
     fn gt(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
+    fn eq(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
+    fn diff(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
 
     // Unary Operators
     fn unary_not(&self, &mut IRContext, &Token) -> IRResult;
@@ -209,6 +211,22 @@ impl KoakCalculable for LLVMValueRef {
         match binop!(context, *self, rhs, token)? {
             (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntSGT, lhs, rhs, "icmptmp")),
             (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOGT, lhs, rhs, "fcmptmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
+        }
+    }
+
+    fn eq(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
+        match binop!(context, *self, rhs, token)? {
+            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ, lhs, rhs, "icmptmp")),
+            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOEQ, lhs, rhs, "fcmptmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
+        }
+    }
+
+    fn diff(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
+        match binop!(context, *self, rhs, token)? {
+            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, lhs, rhs, "icmptmp")),
+            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, lhs, rhs, "fcmptmp")),
             _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
         }
     }

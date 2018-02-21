@@ -70,5 +70,30 @@ class DelimiterTest(CustomLexerTestCase):
         self.assertKoakZeroError()
 
 
+class CmpOperatorTest(CustomLexerTestCase):
+    """
+    Lexer Test Case
+    Test cmp operator
+    """
+
+    def test_equal_basic(self):
+        self.stdin_append("1 == 1")
+        self.stdout_expected([
+            "IntegerLiteral(1)",
+            "Operator(Equal)",
+            "IntegerLiteral(1)"
+        ])
+        self.assertKoakListEqual()
+
+    def test_equal_basic(self):
+        self.stdin_append("1 == 1")
+        self.stdout_expected([
+            "IntegerLiteral(1)",
+            "Operator(Equal)",
+            "IntegerLiteral(1)"
+        ])
+        self.assertKoakListEqual()
+
+
 if __name__ == "__main__":
     main()

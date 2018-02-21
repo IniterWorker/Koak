@@ -22,6 +22,8 @@ use lang::for_loop::{parse_for_loop, ForLoop};
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
+        (OperatorType::Equal, 70),
+        (OperatorType::Different, 70),
         (OperatorType::Less, 80),
         (OperatorType::More, 80),
         (OperatorType::Add, 100),
@@ -205,6 +207,8 @@ impl IRGenerator for Expr {
                     &OperatorType::Rem => KoakCalculable::rem(&lhs, context, &self.token, rhs),
                     &OperatorType::Less => KoakCalculable::lt(&lhs, context, &self.token, rhs),
                     &OperatorType::More => KoakCalculable::gt(&lhs, context, &self.token, rhs),
+                    &OperatorType::Equal => KoakCalculable::eq(&lhs, context, &self.token, rhs),
+                    &OperatorType::Different => KoakCalculable::diff(&lhs, context, &self.token, rhs),
                     _ => unimplemented!(),
                 }
             }

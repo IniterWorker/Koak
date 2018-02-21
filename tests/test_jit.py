@@ -445,6 +445,117 @@ class ForLoopTests(JITCustomTestCase):
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain("Undefined variable \"y\"")
 
+class CmpOperatorTest(JITCustomTestCase):
+
+    def test_equal_integer_integer_zero(self):
+        self.stdin_append([
+            "0==0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_integer_integer_false(self):
+        self.stdin_append([
+            "1==0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_equal_double_integer_zero(self):
+        self.stdin_append([
+            "0.0==0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_integer_double_zero(self):
+        self.stdin_append([
+            "0==0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_double_double_zero(self):
+        self.stdin_append([
+            "0.0==0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_double_double_false(self):
+        self.stdin_append([
+            "0.1==0.11;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_integer_integer_zero(self):
+        self.stdin_append([
+            "0!=0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_integer_integer_false(self):
+        self.stdin_append([
+            "1!=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_diff_double_integer_zero(self):
+        self.stdin_append([
+            "0.0!=0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_integer_double_zero(self):
+        self.stdin_append([
+            "0!=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_double_double_zero(self):
+        self.stdin_append([
+            "0.0!=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_double_double_false(self):
+        self.stdin_append([
+            "0.1!=0.11;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_diff_double_empty(self):
+        self.stdin_append([
+            "0.1!=;"
+        ])
+        self.assertKoakLastErrorContain("An expression was expected")
+
+    def test_diff_with_parenthesis(self):
+        self.stdin_append([
+            "(5 + 10) != (10 + 5);"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_equal_without_parenthesis(self):
+        self.stdin_append([
+            "1 != 2 == 1;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_diff_equal_without_parenthesis_false(self):
+        self.stdin_append([
+            "1.1 != 2.0 == 1.2;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_equal_triple_error(self):
+        self.stdin_append([
+            "1==="
+        ])
+        self.assertKoakLastErrorContain("An expression was expected")
+
+    def test_diff_triple_error(self):
+        self.stdin_append([
+            "1!=="
+        ])
+        self.assertKoakLastErrorContain("An expression was expected")
+
+
 if __name__ == "__main__":
     TextTestRunner.resultclass = ColorTextTestResult
     main(module=None, testRunner=TextTestRunner())
