@@ -119,7 +119,7 @@ impl fmt::Display for ErrorReason {
             &ErrorReason::RedefinedFuncWithDiffArgs(ref func) =>
                 write!(f, "Function \"{}\" redefined with different arguments", purple!(func.to_string())),
             &ErrorReason::MissingSemiColonAfterExtern =>
-                write!(f, "Missing semi-colon after an extern declaration"),
+                write!(f, "Missing semi-colon at the end of an extern declaration"),
             &ErrorReason::MissingSemiColonAfterDef =>
                 write!(f, "Missing semi-colon at the end of a function definition"),
             &ErrorReason::MissingSemiColonAfterTopLevelExpr =>

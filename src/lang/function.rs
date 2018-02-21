@@ -219,7 +219,8 @@ pub fn parse_func_def(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxErr
     let mut func = parse_prototype(parser)?;
     let content = parse_expr(parser)?;
 
-    parser.next_of(TokenType::SemiColon, ErrorReason::MissingSemiColonAfterExtern)?;
+    parser.next_of(TokenType::SemiColon, ErrorReason::MissingSemiColonAfterDef)?;
     func.body = Some(content);
+
     Ok(func)
 }

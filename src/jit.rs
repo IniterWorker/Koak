@@ -78,7 +78,11 @@ impl JitModuleProvider {
         let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
         match fty.get_return_type().to_ref().into() {
             KoakType::Bool => println!("=> {}", res.to_int(false) != 0),
-            KoakType::Char => println!("=> {}", res.to_int(true) as u8 as char),
+            KoakType::Char => {
+                let res = res.to_int(true) as u8 as char;
+                let v: String = res.escape_default().collect();
+                println!("=> '{}'", v);
+            },
             KoakType::Int => println!("=> {}", res.to_int(true) as i32),
             KoakType::Double => println!("=> {}", res.to_float(&RealTypeRef::get_double())),
             _ => (),
