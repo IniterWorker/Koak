@@ -153,7 +153,7 @@ pub trait KoakCalculable {
     fn eq(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
     fn le(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
     fn ge(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
-    fn nq(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
+    fn ne(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
 
     // Unary Operators
     fn unary_not(&self, &mut IRContext, &Token) -> IRResult;
@@ -241,7 +241,7 @@ impl KoakCalculable for LLVMValueRef {
         }
     }
 
-    fn nq(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
+    fn ne(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
         match binop!(context, *self, rhs, token)? {
             (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, lhs, rhs, "icmptmp")),
             (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, lhs, rhs, "fcmptmp")),

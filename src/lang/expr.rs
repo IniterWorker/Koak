@@ -212,7 +212,7 @@ impl IRGenerator for Expr {
                     &OperatorType::Equal => KoakCalculable::eq(&lhs, context, &self.token, rhs),
                     &OperatorType::LessOrEqual => KoakCalculable::le(&lhs, context, &self.token, rhs),
                     &OperatorType::MoreOrEqual => KoakCalculable::ge(&lhs, context, &self.token, rhs),
-                    &OperatorType::Different => KoakCalculable::nq(&lhs, context, &self.token, rhs),
+                    &OperatorType::Different => KoakCalculable::ne(&lhs, context, &self.token, rhs),
                     _ => unimplemented!(),
                 }
             }
