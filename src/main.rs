@@ -2,6 +2,8 @@
 //! Kind Of Alternative Kaleidoscope
 //!
 
+#![feature(catch_expr)]
+
 #[macro_use]
 extern crate lazy_static;
 extern crate rustyline;

@@ -189,6 +189,8 @@ impl<'a> Lexer<'a> {
             "if" => Ok(self.new_token(TokenType::If)),
             "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
+            "for" => Ok(self.new_token(TokenType::For)),
+            "in" => Ok(self.new_token(TokenType::In)),
             "true" => Ok(self.new_token(TokenType::True)),
             "false" => Ok(self.new_token(TokenType::False)),
             "void" => Ok(self.new_token(TokenType::Void)),
@@ -213,6 +215,7 @@ impl<'a> Lexer<'a> {
             ('%', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Rem))),
             ('<', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Less))),
             ('>', _) => Ok(self.new_token(TokenType::Operator(OperatorType::More))),
+            ('=', _) => Ok(self.new_token(TokenType::Equal)),
             _ => unreachable!(),
         }
     }
@@ -231,7 +234,7 @@ impl<'a> Iterator for Lexer<'a> {
                     '\'' => Some(self.lex_char()),
                     'a'...'z' | 'A'...'Z' | '_' => Some(self.lex_identifier(c)),
                     '0'...'9' => Some(self.lex_number(c)),
-                    '+' | '-' | '*' | '/' | '%' | '>' | '<' => Some(self.lex_operators(c)),
+                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' => Some(self.lex_operators(c)),
                     '(' => Some(Ok(self.new_token(TokenType::OpenParenthesis))),
                     ')' => Some(Ok(self.new_token(TokenType::CloseParenthesis))),
                     ',' => Some(Ok(self.new_token(TokenType::Comma))),

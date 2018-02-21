@@ -64,7 +64,7 @@ impl IRGenerator for Cond {
 
         // Compare it to zero
         let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();
-        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, bool_expr, zero, "cond");
+        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, bool_expr, zero, "condtmp");
 
         // Generate the three new blocks
         let current_block = context.builder.get_insert_block();

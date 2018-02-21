@@ -80,6 +80,10 @@ pub enum ErrorReason {
     CantOpenModule(String, String),
     ModuleContainsErrors(String),
     VoidOnlyReturnType,
+    ForLoopIdentifierExpected,
+    ExpectedAssignmentAfterVarName,
+    ExpectedComma,
+    ExpectedInAfterFor,
 }
 
 ///
@@ -150,6 +154,14 @@ impl fmt::Display for ErrorReason {
                 write!(f, "The module \"{}\" contains errors", purple!(name)),
             &ErrorReason::VoidOnlyReturnType =>
                 write!(f, "The \"{}\" type can only be used as a return type of a function", purple!("void")),
+            &ErrorReason::ForLoopIdentifierExpected =>
+                write!(f, "A for-loop must begin with an identifier"),
+            &ErrorReason::ExpectedAssignmentAfterVarName =>
+                write!(f, "An equal symbol ('{}') is expected in an assignation", purple!("=")),
+            &ErrorReason::ExpectedComma =>
+                write!(f, "An comma symbol ('{}') is expected", purple!(",")),
+            &ErrorReason::ExpectedInAfterFor =>
+                write!(f, "The \"{}\" keyword is expected after a \"{}\" declaration", purple!("in"), purple!("for")),
         }
     }
 }

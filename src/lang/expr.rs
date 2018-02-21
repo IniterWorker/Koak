@@ -18,6 +18,7 @@ use lang::cond::{Cond, parse_cond};
 use lang::types::KoakCalculable;
 use lang::types;
 use lang::types::KoakType;
+use lang::for_loop::{parse_for_loop, ForLoop};
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -42,6 +43,7 @@ pub enum ExprType {
     Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
     Call(Rc<String>, Vec<Expr>), // Name, args
     Condition(Box<Cond>),
+    ForLoop(Box<ForLoop>),
 }
 
 #[derive(Clone)]
@@ -150,6 +152,7 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
             }
         },
         TokenType::If => Ok(Expr::new(expr, ExprType::Condition(Box::new(parse_cond(parser)?)))),
+        TokenType::For => Ok(Expr::new(expr, ExprType::ForLoop(Box::new(parse_for_loop(parser)?)))),
         _ => Err(SyntaxError::from(&expr, ErrorReason::ExprExpected)),
     }
 }
@@ -221,7 +224,7 @@ impl IRGenerator for Expr {
                     }
                     let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap().0;
                     if let KoakType::Void = func.ret {
-                        Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), ""))
+                        Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "")) // Void function call must have an anonymous name
                     } else {
                         Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))
                     }
@@ -229,7 +232,8 @@ impl IRGenerator for Expr {
                     Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.args.len() as usize, args.len())))
                 }
             },
-            ExprType::Condition(ref cond) => cond.gen_ir(context, module_provider)
+            ExprType::Condition(ref cond) => cond.gen_ir(context, module_provider),
+            ExprType::ForLoop(ref for_loop) => for_loop.gen_ir(context, module_provider),
         }
     }
 }

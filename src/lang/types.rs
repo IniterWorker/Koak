@@ -106,13 +106,12 @@ pub fn cast_to(token: &Token, val: LLVMValueRef, ty: LLVMTypeRef, context: &mut 
 ///
 /// Tryes to calculate a common type to operate between two types.
 ///
-pub fn calculate_common(lhs: LLVMValueRef, rhs: LLVMValueRef) -> Option<LLVMTypeRef> {
+fn calculate_common(lhs: LLVMValueRef, rhs: LLVMValueRef) -> Option<LLVMTypeRef> {
     match (lhs.get_type().get_kind(), rhs.get_type().get_kind()) {
         (LLVMTypeKind::LLVMIntegerTypeKind, LLVMTypeKind::LLVMIntegerTypeKind) => {
             let lhs_ty = unsafe { IntTypeRef::from_ref(lhs.get_type()) };
             let rhs_ty = unsafe { IntTypeRef::from_ref(rhs.get_type()) };
-            if lhs_ty.get_width() <= rhs_ty.get_width() {
-                // Chose the smaller integer type
+            if lhs_ty.get_width() <= rhs_ty.get_width() { // Chose the smaller integer type
                 Some(rhs.get_type())
             } else {
                 Some(lhs.get_type())
