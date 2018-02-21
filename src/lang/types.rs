@@ -151,7 +151,9 @@ pub trait KoakCalculable {
     fn lt(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
     fn gt(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
     fn eq(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
-    fn diff(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
+    fn le(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
+    fn ge(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
+    fn nq(&self, &mut IRContext, &Token, LLVMValueRef) -> IRResult;
 
     // Unary Operators
     fn unary_not(&self, &mut IRContext, &Token) -> IRResult;
@@ -223,7 +225,23 @@ impl KoakCalculable for LLVMValueRef {
         }
     }
 
-    fn diff(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
+    fn le(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
+        match binop!(context, *self, rhs, token)? {
+            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntSLE, lhs, rhs, "icmptmp")),
+            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOLE, lhs, rhs, "fcmptmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
+        }
+    }
+
+    fn ge(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
+        match binop!(context, *self, rhs, token)? {
+            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntSGE, lhs, rhs, "icmptmp")),
+            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOGE, lhs, rhs, "fcmptmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
+        }
+    }
+
+    fn nq(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
         match binop!(context, *self, rhs, token)? {
             (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, lhs, rhs, "icmptmp")),
             (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, lhs, rhs, "fcmptmp")),

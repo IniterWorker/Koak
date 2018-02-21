@@ -216,6 +216,14 @@ impl<'a> Lexer<'a> {
                 self.chars.next();
                 Ok(self.new_token(TokenType::Operator(OperatorType::Different)))
             },
+            ('<', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::LessOrEqual)))
+            },
+            ('>', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::MoreOrEqual)))
+            },
             ('+', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Add))),
             ('-', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Sub))),
             ('*', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Mul))),

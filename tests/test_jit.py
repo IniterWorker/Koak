@@ -112,6 +112,7 @@ class UnaryOperatorTest(JITCustomTestCase):
         ])
         self.assertKoakLastOutEqual("=> 'a'\n")
 
+
 class AutoCastTests(JITCustomTestCase):
     def test_bool_casts(self):
         self.stdin_append([
@@ -287,6 +288,7 @@ class AutoCastTests(JITCustomTestCase):
         ])
         self.assertKoakListEqual()
 
+
 class VoidTests(JITCustomTestCase):
     def test_void_call(self):
         self.stdin_append("extern putchar(c: char) -> void; def f() -> void putchar('a'); f();")
@@ -345,9 +347,10 @@ class VoidTests(JITCustomTestCase):
             "if 1 < 2 then putchar('a') else 2;",
         ])
         self.assertKoakZeroOut()
-        self.assertKoakLastErrorContain('If bodies\'s type doesn\'t match. Got "void" on one side, and "i32" on the other side')
+        self.assertKoakLastErrorContain(
+            'If bodies\'s type doesn\'t match. Got "void" on one side, and "i32" on the other side')
 
-    #def test_void_cond(self):
+    # def test_void_cond(self):
     #    self.stdin_append([
     #        "extern putchar(c: char) -> void;",
     #        "if 1 < 2 then putchar('a') else putchar('a');",
@@ -361,6 +364,7 @@ class VoidTests(JITCustomTestCase):
         ])
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain('Invalid binary operator for type "i32" and "void"')
+
 
 class ForLoopTests(JITCustomTestCase):
     def test_with_step(self):
@@ -444,6 +448,7 @@ class ForLoopTests(JITCustomTestCase):
         ])
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain("Undefined variable \"y\"")
+
 
 class CmpOperatorTest(JITCustomTestCase):
 
@@ -554,6 +559,66 @@ class CmpOperatorTest(JITCustomTestCase):
             "1!=="
         ])
         self.assertKoakLastErrorContain("An expression was expected")
+
+    def test_leq_integer_integer_zero(self):
+        self.stdin_append([
+            "0<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_leq_integer_integer_false(self):
+        self.stdin_append([
+            "1<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_leq_double_integer_zero(self):
+        self.stdin_append([
+            "0.0<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_leq_integer_double_zero(self):
+        self.stdin_append([
+            "0<=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_leq_double_double_zero(self):
+        self.stdin_append([
+            "0.0<=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_integer_integer_zero(self):
+        self.stdin_append([
+            "0<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_integer_integer_true(self):
+        self.stdin_append([
+            "1>=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_double_integer_zero(self):
+        self.stdin_append([
+            "0.0>=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_integer_double_zero(self):
+        self.stdin_append([
+            "0>=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_double_double_zero(self):
+        self.stdin_append([
+            "0.0>=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
 
 
 if __name__ == "__main__":
