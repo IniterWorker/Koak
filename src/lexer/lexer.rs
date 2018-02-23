@@ -223,6 +223,27 @@ impl<'a> Lexer<'a> {
                 self.chars.next();
                 Ok(self.new_token(TokenType::Operator(OperatorType::MoreOrEqual)))
             },
+            ('>', Some('>')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::Shr)))
+            },
+            ('<', Some('<')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::Shl)))
+            },
+            ('&', Some('&')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::LogicalAnd)))
+            },
+            ('|', Some('|')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::LogicalOr)))
+            },
+            ('~', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Compl))),
+            ('!', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Not))),
+            ('&', _) => Ok(self.new_token(TokenType::Operator(OperatorType::And))),
+            ('^', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Xor))),
+            ('|', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Or))),
             ('+', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Add))),
             ('-', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Sub))),
             ('*', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Mul))),
@@ -249,7 +270,8 @@ impl<'a> Iterator for Lexer<'a> {
                     '\'' => Some(self.lex_char()),
                     'a'...'z' | 'A'...'Z' | '_' => Some(self.lex_identifier(c)),
                     '0'...'9' => Some(self.lex_number(c)),
-                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' => Some(self.lex_operators(c)),
+                    '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' | '|' | '&' | '^' | '~'
+                        => Some(self.lex_operators(c)),
                     '(' => Some(Ok(self.new_token(TokenType::OpenParenthesis))),
                     ')' => Some(Ok(self.new_token(TokenType::CloseParenthesis))),
                     '{' => Some(Ok(self.new_token(TokenType::OpenBracket))),

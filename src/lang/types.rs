@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
+use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate, LLVMOpcode};
 use llvm_sys::prelude::{LLVMTypeRef};
 
 use iron_llvm::{LLVMRef};
@@ -166,20 +166,31 @@ macro_rules! binop {
 
 pub trait KoakCalculable {
     // Binary Operators
-    fn add(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn sub(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn mul(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn div(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn rem(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn lt(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn gt(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn eq(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn le(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn ge(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
-    fn ne(&self, &mut IRContext, &Token, LLVMValueRef) -> IRExprResult;
+    fn add(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn sub(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn mul(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn div(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn rem(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn lt(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn gt(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn eq(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn le(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn ge(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn ne(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn shl(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn shr(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn and(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn or(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+
+    fn bitwise_or(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn bitwise_and(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
+    fn bitwise_xor(&self, &mut IRContext, &Token, KoakValue) -> IRExprResult;
 
     // Unary Operators
     fn unary_not(&self, &mut IRContext, &Token) -> IRExprResult;
+    fn unary_compl(&self, &mut IRContext, &Token) -> IRExprResult;
+    fn unary_neg(&self, &mut IRContext, &Token) -> IRExprResult;
+
 }
 
 impl KoakCalculable for KoakValue {
@@ -258,44 +269,148 @@ impl KoakCalculable for KoakValue {
         Ok(KoakValue::new(new_val, KoakType::Bool))
     }
 
-    fn eq(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
-        match binop!(context, *self, rhs, token)? {
-            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ, lhs, rhs, "icmptmp")),
-            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOEQ, lhs, rhs, "fcmptmp")),
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
-        }
+    fn eq(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+        KoakTypeKind::Integer => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ, lhs_ref, rhs_ref, "icmptmp")),
+        KoakTypeKind::UnsignedInteger => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ, lhs_ref, rhs_ref, "ucmptmp")),
+        KoakTypeKind::FloatingPoint => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOEQ, lhs_ref, rhs_ref, "fcmptmp")),
+        _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, KoakType::Bool))
     }
 
-    fn le(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
-        match binop!(context, *self, rhs, token)? {
-            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntSLE, lhs, rhs, "icmptmp")),
-            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOLE, lhs, rhs, "fcmptmp")),
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
-        }
+    fn le(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntSLE, lhs_ref, rhs_ref, "icmptmp")),
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntULE, lhs_ref, rhs_ref, "ucmptmp")),
+            KoakTypeKind::FloatingPoint => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOEQ, lhs_ref, rhs_ref, "fcmptmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, KoakType::Bool))
     }
 
-    fn ge(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
-        match binop!(context, *self, rhs, token)? {
-            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntSGE, lhs, rhs, "icmptmp")),
-            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOGE, lhs, rhs, "fcmptmp")),
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
-        }
+    fn ge(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntSGE, lhs_ref, rhs_ref, "icmptmp")),
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntUGE, lhs_ref, rhs_ref, "ucmptmp")),
+            KoakTypeKind::FloatingPoint => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOGE, lhs_ref, rhs_ref, "fcmptmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, KoakType::Bool))
     }
 
-    fn ne(&self, context: &mut IRContext, token: &Token, rhs: LLVMValueRef) -> IRResult {
-        match binop!(context, *self, rhs, token)? {
-            (LLVMTypeKind::LLVMIntegerTypeKind, lhs, rhs) => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, lhs, rhs, "icmptmp")),
-            (LLVMTypeKind::LLVMDoubleTypeKind, lhs, rhs) => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, lhs, rhs, "fcmptmp")),
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.get_type(), rhs.get_type())))
-        }
+    fn ne(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, lhs_ref, rhs_ref, "icmptmp")),
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, lhs_ref, rhs_ref, "ucmptmp")),
+            KoakTypeKind::FloatingPoint => Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealONE, lhs_ref, rhs_ref, "fcmptmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, KoakType::Bool))
+    }
+
+    fn shl(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_binop(LLVMOpcode::LLVMShl, lhs_ref, rhs_ref, "shltmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, new_ty))
+    }
+
+    fn shr(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_binop(LLVMOpcode::LLVMLShr, lhs_ref, rhs_ref, "shrtmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, new_ty))
+    }
+    fn and(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger |
+            KoakTypeKind::FloatingPoint => Ok(context.builder.build_and(lhs_ref, rhs_ref, "andtmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, KoakType::Bool))
+    }
+
+    fn or(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger |
+            KoakTypeKind::FloatingPoint => Ok(context.builder.build_or(lhs_ref, rhs_ref, "ortmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, KoakType::Bool))
+    }
+
+    fn bitwise_or(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_binop(LLVMOpcode::LLVMOr, lhs_ref, rhs_ref, "bortmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, new_ty))
+    }
+
+    fn bitwise_and(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger |
+            KoakTypeKind::Other => Ok(context.builder.build_binop(LLVMOpcode::LLVMAnd, lhs_ref, rhs_ref, "bandtmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, new_ty))
+    }
+
+    fn bitwise_xor(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
+        let (new_ty, lhs_ref, rhs_ref) = binop!(context, *self, rhs, token)?;
+        let new_val = match new_ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::Other => Ok(context.builder.build_binop(LLVMOpcode::LLVMXor, lhs_ref, rhs_ref, "bxortmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, new_ty))
     }
 
     // Unary Operators
     fn unary_not(&self, context: &mut IRContext, token: &Token) -> IRExprResult {
         let new_val = match self.ty.get_kind() {
-            KoakTypeKind::Integer | KoakTypeKind::UnsignedInteger => Ok(context.builder.build_neg(self.llvm_ref, "nottmp")),
-            KoakTypeKind::FloatingPoint => Ok(context.builder.build_fneg(self.llvm_ref, "fnottmp")),
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleUnaryOp(self.ty))),
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger |
+            KoakTypeKind::FloatingPoint => Ok(context.builder.build_is_null(self.llvm_ref, "negtmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleUnaryOp(self.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, KoakType::Bool))
+    }
+
+    fn unary_compl(&self, context: &mut IRContext, token: &Token) -> IRExprResult {
+        let new_val = match self.ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_not(self.llvm_ref, "negtmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleUnaryOp(self.ty)))
+        }?;
+        Ok(KoakValue::new(new_val, self.ty))
+    }
+
+    fn unary_neg(&self, context: &mut IRContext, token: &Token) -> IRExprResult {
+        let new_val = match self.ty.get_kind() {
+            KoakTypeKind::Integer |
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_neg(self.llvm_ref, "negtmp")),
+            KoakTypeKind::FloatingPoint  => Ok(context.builder.build_fneg(self.llvm_ref, "negtmp")),
+            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleUnaryOp(self.ty)))
         }?;
         Ok(KoakValue::new(new_val, self.ty))
     }

@@ -21,12 +21,19 @@ use lang::value::KoakValue;
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
+        (OperatorType::LogicalAnd, 20),
+        (OperatorType::LogicalOr, 30),
+        (OperatorType::Or, 40),
+        (OperatorType::Xor, 50),
         (OperatorType::Equal, 70),
+        (OperatorType::And, 60),
         (OperatorType::Different, 70),
         (OperatorType::Less, 80),
         (OperatorType::More, 80),
         (OperatorType::LessOrEqual, 80),
         (OperatorType::MoreOrEqual, 80),
+        (OperatorType::Shl, 90),
+        (OperatorType::Shr, 90),
         (OperatorType::Add, 100),
         (OperatorType::Sub, 100),
         (OperatorType::Mul, 110),
@@ -159,7 +166,9 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
 fn parse_unary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     match parser.peek_type() {
         Some(&TokenType::Operator(t @ OperatorType::Add))
-            | Some(&TokenType::Operator(t @ OperatorType::Sub))
+        | Some(&TokenType::Operator(t @ OperatorType::Sub))
+        | Some(&TokenType::Operator(t @ OperatorType::Not))
+        | Some(&TokenType::Operator(t @ OperatorType::Compl))
                 => {
                     let token = parser.tokens.pop().unwrap();
                     Ok(Expr::new(token, ExprType::Unary(t, Box::new(parse_unary(parser)?))))
@@ -189,7 +198,9 @@ impl IRExprGenerator for Expr {
                 let val = expr.gen_ir(context, module_provider)?;
                 match *op {
                     OperatorType::Add => Ok(val),
-                    OperatorType::Sub => val.unary_not(context, &expr.token),
+                    OperatorType::Sub => val.unary_neg(context, &expr.token),
+                    OperatorType::Compl => val.unary_compl(context, &expr.token),
+                    OperatorType::Not => val.unary_not(context, &expr.token),
                     _ => unimplemented!(),
                 }
             },
@@ -198,17 +209,24 @@ impl IRExprGenerator for Expr {
                 let rhs = rhs.gen_ir(context, module_provider)?;
 
                 match *op {
-                    &OperatorType::Add => KoakCalculable::add(&lhs, context, &self.token, rhs),
-                    &OperatorType::Sub => KoakCalculable::sub(&lhs, context, &self.token, rhs),
-                    &OperatorType::Mul => KoakCalculable::mul(&lhs, context, &self.token, rhs),
-                    &OperatorType::Div => KoakCalculable::div(&lhs, context, &self.token, rhs),
-                    &OperatorType::Rem => KoakCalculable::rem(&lhs, context, &self.token, rhs),
-                    &OperatorType::Less => KoakCalculable::lt(&lhs, context, &self.token, rhs),
-                    &OperatorType::More => KoakCalculable::gt(&lhs, context, &self.token, rhs),
-                    &OperatorType::Equal => KoakCalculable::eq(&lhs, context, &self.token, rhs),
-                    &OperatorType::LessOrEqual => KoakCalculable::le(&lhs, context, &self.token, rhs),
-                    &OperatorType::MoreOrEqual => KoakCalculable::ge(&lhs, context, &self.token, rhs),
-                    &OperatorType::Different => KoakCalculable::ne(&lhs, context, &self.token, rhs),
+                    OperatorType::Add => KoakCalculable::add(&lhs, context, &self.token, rhs),
+                    OperatorType::Sub => KoakCalculable::sub(&lhs, context, &self.token, rhs),
+                    OperatorType::Mul => KoakCalculable::mul(&lhs, context, &self.token, rhs),
+                    OperatorType::Div => KoakCalculable::div(&lhs, context, &self.token, rhs),
+                    OperatorType::Rem => KoakCalculable::rem(&lhs, context, &self.token, rhs),
+                    OperatorType::Less => KoakCalculable::lt(&lhs, context, &self.token, rhs),
+                    OperatorType::More => KoakCalculable::gt(&lhs, context, &self.token, rhs),
+                    OperatorType::Equal => KoakCalculable::eq(&lhs, context, &self.token, rhs),
+                    OperatorType::LessOrEqual => KoakCalculable::le(&lhs, context, &self.token, rhs),
+                    OperatorType::MoreOrEqual => KoakCalculable::ge(&lhs, context, &self.token, rhs),
+                    OperatorType::Or => KoakCalculable::bitwise_or(&lhs, context, &self.token, rhs),
+                    OperatorType::And => KoakCalculable::bitwise_and(&lhs, context, &self.token, rhs),
+                    OperatorType::Xor => KoakCalculable::bitwise_xor(&lhs, context, &self.token, rhs),
+                    OperatorType::Shl => KoakCalculable::shl(&lhs, context, &self.token, rhs),
+                    OperatorType::Shr => KoakCalculable::shr(&lhs, context, &self.token, rhs),
+                    OperatorType::LogicalAnd => KoakCalculable::and(&lhs, context, &self.token, rhs),
+                    OperatorType::LogicalOr => KoakCalculable::or(&lhs, context, &self.token, rhs),
+                    OperatorType::Different => KoakCalculable::ne(&lhs, context, &self.token, rhs),
                     _ => unimplemented!(),
                 }
             }

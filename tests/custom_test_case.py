@@ -228,10 +228,12 @@ class CustomTestCase(TestCase):
 
     def assertKoakLastErrorEqual(self, test_error: str):
         self.runKoak()
+        self.stderr_expected(test_error)
         self.assertKoakLastEqual(None, test_error, Stream.STDERR)
 
     def assertKoakLastOutEqual(self, test_out: str):
         self.runKoak()
+        self.stdout_expected(test_out)
         self.assertKoakLastEqual(test_out, None, Stream.STDOUT)
 
     def assertKoakZeroError(self):

@@ -22,12 +22,12 @@ class UnknownCharTest(CustomLexerTestCase):
         self.assertKoakLastErrorContain("Invalid literal char")  # since typing char
 
     def test_Unknown_char_2(self):
-        self.stdin_append("def x(&) x * x")
-        self.assertKoakLastErrorContain("Unknown char '&'")
+        self.stdin_append("def x($) x * x")
+        self.assertKoakNeedError()
 
     def test_Top_Level_Tokens(self):
-        self.stdin_append("def x(&) x * x")
-        self.assertKoakLastErrorContain("Unknown char '&'")
+        self.stdin_append("def x($) x * x")
+        self.assertKoakNeedError()
 
 
 class KeywordsTest(CustomLexerTestCase):
@@ -75,15 +75,6 @@ class CmpOperatorTest(CustomLexerTestCase):
     Lexer Test Case
     Test cmp operator
     """
-
-    def test_equal_basic(self):
-        self.stdin_append("1 == 1")
-        self.stdout_expected([
-            "IntegerLiteral(1)",
-            "Operator(Equal)",
-            "IntegerLiteral(1)"
-        ])
-        self.assertKoakListEqual()
 
     def test_equal_basic(self):
         self.stdin_append("1 == 1")
