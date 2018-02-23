@@ -44,10 +44,10 @@ fn run_module(mm: &mut ModuleManager, input: &mut FileSourceInput) -> Result<Vec
         }
     }
 
-    if errors.len() > 0 {
-        Err(errors)
-    } else {
+    if errors.is_empty() {
         Ok(ast)
+    } else {
+        Err(errors)
     }
 }
 
@@ -56,9 +56,15 @@ fn run_module(mm: &mut ModuleManager, input: &mut FileSourceInput) -> Result<Vec
 /// or a vector of syntax error if the module is not compiling properly.
 ///
 pub fn load_module(mm: &mut ModuleManager, path_token: &Token, path: &str) -> Result<Vec<ASTNode>, Vec<SyntaxError>> {
-    let new_path = path.to_string() + ".ks";
+    let mut new_path = path.to_string();
+
+    // Appends .ks if not provided
+    if !path.ends_with(".ks") {
+        new_path += ".ks";
+    }
+
     let mut fsi = FileSourceInput::open(&new_path).map_err(|err| {
-        vec![SyntaxError::from(path_token, ErrorReason::CantOpenModule(String::from(new_path), err.to_string()))]
+        vec![SyntaxError::from(path_token, ErrorReason::CantOpenModule(new_path, err.to_string()))]
     })?;
 
     if mm.loaded_modules.contains(&fsi.canon_path) { // Prevent recursive search

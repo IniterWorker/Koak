@@ -8,11 +8,9 @@ use std::fmt;
 use libc;
 use ansi_term::Colour::*;
 
-use llvm_sys::prelude::LLVMTypeRef;
-use iron_llvm::core::types::Type;
-
 use args::Args;
 use lexer::Token;
+use lang::types::KoakType;
 
 ///
 /// Quick macro to enable colors if stderr is a tty
@@ -57,13 +55,13 @@ pub enum ErrorReason {
     ExprExpected,
     ExpectedFuncName,
     ExpectedOpenParenthesis,
+    ExpectedOpenBracket,
     UndefinedVariable(String),
     UndefinedFunction(String),
     WrongArgNumber(String, usize, usize),
     RedefinedFunc(String),
     RedefinedFuncWithDiffArgs(String),
     MissingSemiColonAfterExtern,
-    MissingSemiColonAfterDef,
     MissingSemiColonAfterTopLevelExpr,
     MissingSemiColonAfterImport,
     ThenTokenExpected,
@@ -71,11 +69,11 @@ pub enum ErrorReason {
     ArgTypeExpected,
     RetTypeExpected,
     InvalidType,
-    IfBodiesTypeDoesntMatch(LLVMTypeRef, LLVMTypeRef),
-    IncompatibleBinOp(LLVMTypeRef, LLVMTypeRef),
-    IncompatibleUnaryOp(LLVMTypeRef),
+    IfBodiesTypeDoesntMatch(KoakType, KoakType),
+    IncompatibleBinOp(KoakType, KoakType),
+    IncompatibleUnaryOp(KoakType),
     ExpectedNextArgOrCloseParenthesis,
-    CantCastTo(LLVMTypeRef, LLVMTypeRef),
+    CantCastTo(KoakType, KoakType),
     ModuleNameExpected,
     CantOpenModule(String, String),
     ModuleContainsErrors(String),
@@ -84,6 +82,8 @@ pub enum ErrorReason {
     ExpectedAssignmentAfterVarName,
     ExpectedComma,
     ExpectedInAfterFor,
+    UnterminatedBlock,
+    ExpectedSemiColorOrCloseBracket,
 }
 
 ///
@@ -91,77 +91,81 @@ pub enum ErrorReason {
 ///
 impl fmt::Display for ErrorReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            &ErrorReason::UnknownChar(ref c) =>
+        match *self {
+            ErrorReason::UnknownChar(ref c) =>
                 write!(f, "Unknown char \'{}\'", purple!(c)),
-            &ErrorReason::InvalidLiteralNum(ref s) =>
+            ErrorReason::InvalidLiteralNum(ref s) =>
                 write!(f, "Invalid literal number \"{}\"", purple!(s)),
-            &ErrorReason::InvalidCharLiteral(ref s) =>
+            ErrorReason::InvalidCharLiteral(ref s) =>
                 write!(f, "Invalid literal char \'{}\'", purple!(s)),
-            &ErrorReason::UnterminatedString =>
+            ErrorReason::UnterminatedString =>
                 write!(f, "Unterminated string"),
-            &ErrorReason::UnmatchedParenthesis =>
+            ErrorReason::UnmatchedParenthesis =>
                 write!(f, "Unmatched parenthesis"),
-            &ErrorReason::ExprExpected =>
+            ErrorReason::ExprExpected =>
                 write!(f, "An expression was expected"),
-            &ErrorReason::ExpectedFuncName =>
+            ErrorReason::ExpectedFuncName =>
                 write!(f, "Function name was expected in a prototype"),
-            &ErrorReason::ExpectedOpenParenthesis =>
+            ErrorReason::ExpectedOpenParenthesis =>
                 write!(f, "Open parenthesis was expected after function name in a prototype"),
-            &ErrorReason::UndefinedVariable(ref s) =>
+            ErrorReason::ExpectedOpenBracket =>
+                write!(f, "Open bracket was expected to initiate a block"),
+            ErrorReason::UndefinedVariable(ref s) =>
                 write!(f, "Undefined variable \"{}\"", purple!(s)),
-            &ErrorReason::UndefinedFunction(ref s) =>
+            ErrorReason::UndefinedFunction(ref s) =>
                 write!(f, "Undefined function \"{}\"", purple!(s)),
-            &ErrorReason::WrongArgNumber(ref name, expected, given) =>
+            ErrorReason::WrongArgNumber(ref name, expected, given) =>
                 write!(f, "Wrong number of argument: The function \"{}\" expects {} argument(s), but {} are given", purple!(name), expected, given),
-            &ErrorReason::RedefinedFunc(ref name) =>
+            ErrorReason::RedefinedFunc(ref name) =>
                 write!(f, "Redefinition of function \"{}\"", purple!(name)),
-            &ErrorReason::RedefinedFuncWithDiffArgs(ref func) =>
+            ErrorReason::RedefinedFuncWithDiffArgs(ref func) =>
                 write!(f, "Function \"{}\" redefined with different arguments", purple!(func.to_string())),
-            &ErrorReason::MissingSemiColonAfterExtern =>
+            ErrorReason::MissingSemiColonAfterExtern =>
                 write!(f, "Missing semi-colon at the end of an extern declaration"),
-            &ErrorReason::MissingSemiColonAfterDef =>
-                write!(f, "Missing semi-colon at the end of a function definition"),
-            &ErrorReason::MissingSemiColonAfterTopLevelExpr =>
+            ErrorReason::MissingSemiColonAfterTopLevelExpr =>
                 write!(f, "Missing semi-colon at the end of a top-level expression"),
-            &ErrorReason::MissingSemiColonAfterImport =>
+            ErrorReason::MissingSemiColonAfterImport =>
                 write!(f, "Missing semi-colon at the end an import declaration"),
-            &ErrorReason::ThenTokenExpected =>
+            ErrorReason::ThenTokenExpected =>
                 write!(f, "\"{}\" is expected after an \"{}\"", purple!("then"), purple!("if")),
-            &ErrorReason::ElseTokenExpected =>
+            ErrorReason::ElseTokenExpected =>
                 write!(f, "\"{}\" is expected after a \"{}\"", purple!("else"), purple!("then")),
-            &ErrorReason::ArgTypeExpected =>
+            ErrorReason::ArgTypeExpected =>
                 write!(f, "Argument type is expected"),
-            &ErrorReason::RetTypeExpected =>
+            ErrorReason::RetTypeExpected =>
                 write!(f, "Return type is expected"),
-            &ErrorReason::InvalidType =>
+            ErrorReason::InvalidType =>
                 write!(f, "Given type isn't valid"),
-            &ErrorReason::IfBodiesTypeDoesntMatch(ref a, ref b) =>
-                write!(f, "If bodies's type doesn't match. Got \"{}\" on one side, and \"{}\" on the other side", purple!(a.print_to_string()), purple!(b.print_to_string())),
-            &ErrorReason::IncompatibleBinOp(ref lhs, ref rhs) =>
-                write!(f, "Invalid binary operator for type \"{}\" and \"{}\"", purple!(lhs.print_to_string()), purple!(rhs.print_to_string())),
-            &ErrorReason::ExpectedNextArgOrCloseParenthesis =>
+            ErrorReason::IfBodiesTypeDoesntMatch(ref a, ref b) =>
+                write!(f, "If bodies's type doesn't match. Got \"{}\" on one side, and \"{}\" on the other side", purple!(a), purple!(b)),
+            ErrorReason::IncompatibleBinOp(ref lhs, ref rhs) =>
+                write!(f, "Invalid binary operator for type \"{}\" and \"{}\"", purple!(lhs), purple!(rhs)),
+            ErrorReason::ExpectedNextArgOrCloseParenthesis =>
                 write!(f, "Expected next function's argument or a close parenthesis"),
-            &ErrorReason::CantCastTo(ref a, ref b) =>
-                write!(f, "Can't cast type \"{}\" to type \"{}\"", purple!(a.print_to_string()), purple!(b.print_to_string())),
-            &ErrorReason::IncompatibleUnaryOp(ref a) =>
-                write!(f, "Invalid unary operator for type \"{}\"", purple!(a.print_to_string())),
-            &ErrorReason::ModuleNameExpected =>
+            ErrorReason::CantCastTo(ref a, ref b) =>
+                write!(f, "Can't cast type \"{}\" to type \"{}\"", purple!(a), purple!(b)),
+            ErrorReason::IncompatibleUnaryOp(ref a) =>
+                write!(f, "Invalid unary operator for type \"{}\"", purple!(a)),
+            ErrorReason::ModuleNameExpected =>
                 write!(f, "Module name was expected"),
-            &ErrorReason::CantOpenModule(ref name, ref error) =>
+            ErrorReason::CantOpenModule(ref name, ref error) =>
                 write!(f, "Can't open module \"{}\": {}", purple!(name), error),
-            &ErrorReason::ModuleContainsErrors(ref name) =>
+            ErrorReason::ModuleContainsErrors(ref name) =>
                 write!(f, "The module \"{}\" contains errors", purple!(name)),
-            &ErrorReason::VoidOnlyReturnType =>
+            ErrorReason::VoidOnlyReturnType =>
                 write!(f, "The \"{}\" type can only be used as a return type of a function", purple!("void")),
-            &ErrorReason::ForLoopIdentifierExpected =>
+            ErrorReason::ForLoopIdentifierExpected =>
                 write!(f, "A for-loop must begin with an identifier"),
-            &ErrorReason::ExpectedAssignmentAfterVarName =>
+            ErrorReason::ExpectedAssignmentAfterVarName =>
                 write!(f, "An equal symbol ('{}') is expected in an assignation", purple!("=")),
-            &ErrorReason::ExpectedComma =>
+            ErrorReason::ExpectedComma =>
                 write!(f, "An comma symbol ('{}') is expected", purple!(",")),
-            &ErrorReason::ExpectedInAfterFor =>
+            ErrorReason::ExpectedInAfterFor =>
                 write!(f, "The \"{}\" keyword is expected after a \"{}\" declaration", purple!("in"), purple!("for")),
+            ErrorReason::UnterminatedBlock =>
+                write!(f, "Unterminated block"),
+            ErrorReason::ExpectedSemiColorOrCloseBracket =>
+                write!(f, "Unexpected token: A '{}' or a '{}' is expected", purple!(";"), purple!("}")),
         }
     }
 }
@@ -247,11 +251,13 @@ impl<'a> fmt::Display for ComplexError<'a> {
     }
 }
 
-pub fn print_errors(args: &Args, errors: &Vec<SyntaxError>) {
+pub fn print_errors(args: &Args, errors: &[SyntaxError]) {
     for e in errors {
-        match args.tiny_errors {
-            true => eprintln!("{}", TinyError(e)),
-            _ => eprintln!("{}", ComplexError(e)),
+        if args.tiny_errors {
+            eprintln!("{}", TinyError(e));
+        }
+        else {
+            eprintln!("{}", ComplexError(e));
         }
     }
 }

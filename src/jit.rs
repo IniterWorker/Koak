@@ -16,7 +16,7 @@ use iron_llvm::core::types::{FunctionType, FunctionTypeRef};
 use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
 
 use codegen;
-use codegen::IRModuleProvider;
+use codegen::{IRModuleProvider, IRContext};
 use lang::types::KoakType;
 
 pub struct JitModuleProvider {
@@ -71,12 +71,12 @@ impl JitModuleProvider {
     ///
     /// This function asserts the module containg the given function has been freezed.
     ///
-    pub fn run_function(&mut self, func: LLVMValueRef) {
+    pub fn run_function(&mut self, context: &IRContext, func: LLVMValueRef) {
+        let func_proto = &context.functions[&func.get_name()];
         let func = unsafe { FunctionRef::from_ref(func) };
         let res = self.exec_engine.run_function(&func, Vec::new().as_mut_slice());
-        let fty = unsafe { FunctionTypeRef::from_ref(func.get_type().to_ref()) };
-        let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
-        match fty.get_return_type().to_ref().into() {
+
+        match func_proto.ret_ty {
             KoakType::Bool => println!("=> {}", res.to_int(false) != 0),
             KoakType::Char => {
                 let res = res.to_int(true) as u8 as char;
@@ -92,7 +92,7 @@ impl JitModuleProvider {
 
 impl IRModuleProvider for JitModuleProvider {
     fn dump(&self) {
-        for module in self.compiled_modules.iter() {
+        for module in &self.compiled_modules {
             module.get().dump();
         }
         self.current_module.dump();
@@ -108,24 +108,21 @@ impl IRModuleProvider for JitModuleProvider {
     ///
     fn get_llvm_funcref_by_name(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
         // Search old modules first
-        for module in self.compiled_modules.iter() {
-            match module.get().get_function_by_name(name) {
-                Some(func) => {
-                    // We can't call functions from other modules, so we need to add a prototype in the current module
-                    let proto = match self.current_module.get_function_by_name(name) {
-                        Some(f) => {
-                            assert!(f.count_basic_blocks() == 0);
-                            f
-                        },
-                        None => {
-                            let fty = unsafe { FunctionTypeRef::from_ref(func.get_type().to_ref()) };
-                            let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
-                            FunctionRef::new(&mut self.current_module, name, &fty)
-                        }
-                    };
-                    return Some((proto, func.count_basic_blocks() > 0));
-                },
-                None => (),
+        for module in &self.compiled_modules {
+            if let Some(func) = module.get().get_function_by_name(name) {
+                // We can't call functions from other modules, so we need to add a prototype in the current module
+                let proto = match self.current_module.get_function_by_name(name) {
+                    Some(f) => {
+                        assert!(f.count_basic_blocks() == 0);
+                        f
+                    },
+                    None => {
+                        let fty = unsafe { FunctionTypeRef::from_ref(func.get_type().to_ref()) };
+                        let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
+                        FunctionRef::new(&mut self.current_module, name, &fty)
+                    }
+                };
+                return Some((proto, func.count_basic_blocks() > 0));
             };
         }
         // If not found, Search current module

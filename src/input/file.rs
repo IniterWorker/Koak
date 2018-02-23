@@ -42,7 +42,7 @@ impl Iterator for FileSourceInput {
         match self.bufreader.read_line(&mut line) {
             Ok(c) => {
                 if c != 0 {
-                    if line.as_bytes().last() == Some(&('\n' as u8)) { // Remove last '\n'
+                    if line.as_bytes().last() == Some(&(b'\n')) { // Remove last '\n'
                         line.pop();
                     }
                     Some(Rc::new(line))

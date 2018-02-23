@@ -40,25 +40,32 @@ cargo run
 # Computes the x'th fibonacci number
 #
 
-def fib(x: double) -> double
-    if x < 3.0 then
+def fib(x: double) -> double {
+    if x < 3.0 then {
         1.0
-    else
+    }
+    else {
         fib(x - 1.0) + fib(x - 2.0)
-;
+    }
+}
 ```
 
 ```llvm
 $ cargo run
 >> import "examples/fib";
+
 define double @fib(double %x) {
 entry:
   %fcmptmp = fcmp olt double %x, 3.000000e+00
-  %cond = icmp ne i1 %fcmptmp, false
-  br i1 %cond, label %then, label %else
+  %condtmp = icmp ne i1 %fcmptmp, false
+  br i1 %condtmp, label %then, label %else
 
 then:                                             ; preds = %entry
   br label %merge
+
+merge:                                            ; preds = %else, %then
+  %ifphi = phi double [ 1.000000e+00, %then ], [ %faddtmp, %else ]
+  ret double %ifphi
 
 else:                                             ; preds = %entry
   %fsubtmp = fsub double %x, 1.000000e+00
@@ -67,10 +74,6 @@ else:                                             ; preds = %entry
   %calltmp2 = call double @fib(double %fsubtmp1)
   %faddtmp = fadd double %calltmp, %calltmp2
   br label %merge
-
-merge:                                            ; preds = %else, %then
-  %ifphi = phi double [ 1.000000e+00, %then ], [ %faddtmp, %else ]
-  ret double %ifphi
 }
 
 >> fib(42);
@@ -89,9 +92,10 @@ merge:                                            ; preds = %else, %then
   - [X] Unary operators
   - [X] Binary operators
   - [X] Control flow (`if`/`then`/`else`)
-  - [ ] Loops (`for`/`while`)
+  - [X] Loops (`for`/`while`)
   - [ ] Mutable variables
   - [X] Type system (`void`, `bool`, `char`, `int`, `double` etc.)
+  - [X] Blocks (`{` and `}`)
   - [ ] Strings
   - [X] Module system (`import`)
 - [ ] Execution and compilation

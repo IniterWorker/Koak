@@ -35,13 +35,13 @@ fn main() {
     let args = Args::parse_args();
 
     // Pipeline depends on arguments
-    if args.input.len() == 0 {
+    if args.input.is_empty() {
         let mut pipeline = StdinPipeline::new(&args);
         pipeline.run();
     } else {
         let mut out = false;
         for file in &args.input {
-            let fsi = match FileSourceInput::open(&file) {
+            let fsi = match FileSourceInput::open(file) {
                 Ok(fsi) => fsi,
                 Err(e) => {
                     eprintln!("{}: {}", file, e);

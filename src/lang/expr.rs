@@ -13,12 +13,11 @@ use iron_llvm::core::value::{IntConstRef, IntConstCtor, RealConstRef, RealConstC
 use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
-use codegen::{IRContext, IRGenerator, IRResult, IRModuleProvider};
-use lang::cond::{Cond, parse_cond};
+use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 use lang::types::KoakCalculable;
 use lang::types;
 use lang::types::KoakType;
-use lang::for_loop::{parse_for_loop, ForLoop};
+use lang::value::KoakValue;
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
@@ -46,8 +45,6 @@ pub enum ExprType {
     Unary(OperatorType, Box<Expr>),
     Binary(OperatorType, Box<Expr>, Box<Expr>), // Op, Exp1, Exp2
     Call(Rc<String>, Vec<Expr>), // Name, args
-    Condition(Box<Cond>),
-    ForLoop(Box<ForLoop>),
 }
 
 #[derive(Clone)]
@@ -155,8 +152,6 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
                 _ => Ok(Expr::new(expr, ExprType::Variable(identifier))),
             }
         },
-        TokenType::If => Ok(Expr::new(expr, ExprType::Condition(Box::new(parse_cond(parser)?)))),
-        TokenType::For => Ok(Expr::new(expr, ExprType::ForLoop(Box::new(parse_for_loop(parser)?)))),
         _ => Err(SyntaxError::from(&expr, ErrorReason::ExprExpected)),
     }
 }
@@ -179,29 +174,30 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     parse_bin_rhs(parser, 0, expr)
 }
 
-impl IRGenerator for Expr {
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
+impl IRExprGenerator for Expr {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
         match self.expr_type {
-            ExprType::BoolLiteral(b) => Ok(IntConstRef::get(&IntTypeRef::get_int1(), b as u64, true).to_ref()),
-            ExprType::CharLiteral(c) => Ok(IntConstRef::get(&IntTypeRef::get_int8(), c as u64, true).to_ref()),
-            ExprType::IntegerLiteral(n) => Ok(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref()),
-            ExprType::DoubleLiteral(n) => Ok(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref()),
+            ExprType::BoolLiteral(b) => Ok(KoakValue::new(IntConstRef::get(&IntTypeRef::get_int1(), b as u64, true).to_ref(), KoakType::Bool)),
+            ExprType::CharLiteral(c) => Ok(KoakValue::new(IntConstRef::get(&IntTypeRef::get_int8(), c as u64, true).to_ref(), KoakType::Char)),
+            ExprType::IntegerLiteral(n) => Ok(KoakValue::new(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref(), KoakType::Int)),
+            ExprType::DoubleLiteral(n) => Ok(KoakValue::new(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref(), KoakType::Double)),
             ExprType::Variable(ref s) => match context.get_var(s) {
                 Some(var) => Ok(var),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),
             },
             ExprType::Unary(ref op, ref expr) => {
                 let val = expr.gen_ir(context, module_provider)?;
-                match op {
-                    &OperatorType::Add => Ok(val),
-                    &OperatorType::Sub => val.unary_not(context, &expr.token),
+                match *op {
+                    OperatorType::Add => Ok(val),
+                    OperatorType::Sub => val.unary_not(context, &expr.token),
                     _ => unimplemented!(),
                 }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
                 let lhs = lhs.gen_ir(context, module_provider)?;
                 let rhs = rhs.gen_ir(context, module_provider)?;
-                match op {
+
+                match *op {
                     &OperatorType::Add => KoakCalculable::add(&lhs, context, &self.token, rhs),
                     &OperatorType::Sub => KoakCalculable::sub(&lhs, context, &self.token, rhs),
                     &OperatorType::Mul => KoakCalculable::mul(&lhs, context, &self.token, rhs),
@@ -217,10 +213,8 @@ impl IRGenerator for Expr {
                 }
             }
             ExprType::Call(ref name, ref args) => {
-                use std::borrow::Borrow;
-
-                // Get the abstract function corresponding to the given name
-                let func = (context.functions.get(name).ok_or(SyntaxError::from(&self.token, ErrorReason::UndefinedFunction(name.to_string())))?).clone();
+                // Get the prototype of the function corresponding to the given name
+                let func = (context.functions.get(name).ok_or_else(|| SyntaxError::from(&self.token, ErrorReason::UndefinedFunction(name.to_string())))?).clone();
 
                 // Validate arguments
                 if args.len() == func.args.len() as usize {
@@ -228,20 +222,20 @@ impl IRGenerator for Expr {
                     for (arg, wanted_type) in args.iter().zip(func.args.iter()) {
                         let arg_val = arg.gen_ir(context, module_provider)?;
                         let cast_arg = types::cast_to(&arg.token, arg_val, wanted_type.ty, context)?;
-                        args_value.push(cast_arg);
+                        args_value.push(cast_arg.llvm_ref);
                     }
-                    let llvm_ref = module_provider.get_llvm_funcref_by_name(func.name.borrow() as &String).unwrap().0;
-                    if let KoakType::Void = func.ret {
-                        Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "")) // Void function call must have an anonymous name
+                    let llvm_ref = module_provider.get_llvm_funcref_by_name(&func.name as &String).unwrap().0;
+                    if let KoakType::Void = func.ret_ty {
+                        context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), ""); // Void function call must have an anonymous name
+                        Ok(KoakValue::new_void())
+
                     } else {
-                        Ok(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"))
+                        Ok(KoakValue::new(context.builder.build_call(llvm_ref.to_ref(), args_value.as_mut_slice(), "calltmp"), func.ret_ty))
                     }
                 } else {
                     Err(SyntaxError::from(&self.token, ErrorReason::WrongArgNumber(name.to_string(), func.args.len() as usize, args.len())))
                 }
             },
-            ExprType::Condition(ref cond) => cond.gen_ir(context, module_provider),
-            ExprType::ForLoop(ref for_loop) => for_loop.gen_ir(context, module_provider),
         }
     }
 }

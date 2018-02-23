@@ -20,7 +20,7 @@ pub struct LexerCharIterator<'a> {
 impl<'a> LexerCharIterator<'a> {
     #[inline]
     pub fn peek(&mut self) -> Option<char> {
-        self.chars.peek().map(|x| *x)
+        self.chars.peek().cloned()
     }
 
     #[inline]
@@ -187,7 +187,6 @@ impl<'a> Lexer<'a> {
             "extern" => Ok(self.new_token(TokenType::Extern)),
             "import" => Ok(self.new_token(TokenType::Import)),
             "if" => Ok(self.new_token(TokenType::If)),
-            "then" => Ok(self.new_token(TokenType::Then)),
             "else" => Ok(self.new_token(TokenType::Else)),
             "for" => Ok(self.new_token(TokenType::For)),
             "in" => Ok(self.new_token(TokenType::In)),
@@ -253,6 +252,8 @@ impl<'a> Iterator for Lexer<'a> {
                     '+' | '-' | '*' | '/' | '%' | '>' | '<' | '=' | '!' => Some(self.lex_operators(c)),
                     '(' => Some(Ok(self.new_token(TokenType::OpenParenthesis))),
                     ')' => Some(Ok(self.new_token(TokenType::CloseParenthesis))),
+                    '{' => Some(Ok(self.new_token(TokenType::OpenBracket))),
+                    '}' => Some(Ok(self.new_token(TokenType::CloseBracket))),
                     ',' => Some(Ok(self.new_token(TokenType::Comma))),
                     ';' => Some(Ok(self.new_token(TokenType::SemiColon))),
                     ':' => Some(Ok(self.new_token(TokenType::Colon))),

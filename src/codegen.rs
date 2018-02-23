@@ -12,7 +12,8 @@ use iron_llvm::core::value::FunctionRef;
 use iron_llvm::core::Function;
 
 use error::SyntaxError;
-use lang::function::ConcreteFunction;
+use lang::function::FunctionPrototype;
+use lang::value::KoakValue;
 
 ///
 /// Structure holding LLVM's stuff, used when generating IR code.
@@ -20,8 +21,8 @@ use lang::function::ConcreteFunction;
 pub struct IRContext {
     pub context: core::Context,
     pub builder: core::Builder,
-    pub functions: HashMap<Rc<String>, Rc<ConcreteFunction>>,
-    scopes: Vec<HashMap<Rc<String>, LLVMValueRef>>, // Vector of a map of local variables
+    pub functions: HashMap<Rc<String>, Rc<FunctionPrototype>>,
+    scopes: Vec<HashMap<Rc<String>, KoakValue>>, // of local variables
 }
 
 impl IRContext {
@@ -35,17 +36,17 @@ impl IRContext {
         }
     }
 
-    pub fn get_var(&self, name: &String) -> Option<LLVMValueRef> {
+    pub fn get_var(&self, name: &String) -> Option<KoakValue> {
         for scope in self.scopes.iter().rev() {
             if let r @ Some(_) = scope.get(name) {
-                return r.map(|x| *x);
+                return r.cloned();
             }
         }
         None
     }
 
     #[inline]
-    pub fn add_var(&mut self, name: Rc<String>, val: LLVMValueRef) {
+    pub fn add_var(&mut self, name: Rc<String>, val: KoakValue) {
         self.scopes.last_mut().unwrap().insert(name, val);
     }
 
@@ -63,10 +64,16 @@ impl IRContext {
 ///
 /// Trait that each language element must provide to generate their corresponding IR code.
 ///
-pub type IRResult = Result<LLVMValueRef, SyntaxError>;
+///
+pub type IRFuncResult = Result<LLVMValueRef, SyntaxError>;
+pub type IRExprResult = Result<KoakValue, SyntaxError>;
 
-pub trait IRGenerator {
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult;
+pub trait IRFuncGenerator {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRFuncResult;
+}
+
+pub trait IRExprGenerator {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult;
 }
 
 ///
@@ -118,7 +125,7 @@ impl IRModuleProvider for SimpleModuleProvider {
 /// Returns a pass manager depending on the given parameters
 ///
 pub fn get_pass_manager(m: &core::Module, optimizations: bool) -> core::FunctionPassManager {
-    let mut pm = core::FunctionPassManager::new(&m);
+    let mut pm = core::FunctionPassManager::new(m);
     if optimizations {
         pm.add_basic_alias_analysis_pass();
         pm.add_instruction_combining_pass();
