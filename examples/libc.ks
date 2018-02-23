@@ -2,4 +2,4 @@
 # Bindings to the C library.
 #
 
-extern putchar(c: int) -> void;
+extern putchar(c: char) -> void;

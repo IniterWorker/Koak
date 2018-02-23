@@ -40,19 +40,19 @@ impl<'a> FilePipeline<'a> {
 
         if self.args.stop_after_lexer {
             pipeline.print_errors_or_vec(&tokens);
-            return pipeline.errors.len() != 0;
+            return !pipeline.errors.is_empty();
         }
 
         let nodes = pipeline.run_parser(tokens);
         if self.args.stop_after_parser {
             pipeline.print_errors_or_vec(&nodes);
-            return pipeline.errors.len() != 0;
+            return !pipeline.errors.is_empty();
         }
 
         pipeline.generate_ir(nodes, |_| {});
 
         // print errors or dump code
-        if pipeline.errors.len() == 0 {
+        if pipeline.errors.is_empty() {
             pipeline.module_provider.dump();
             false
         } else {

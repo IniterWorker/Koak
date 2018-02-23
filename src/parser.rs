@@ -4,15 +4,16 @@
 
 use std::rc::Rc;
 
-use llvm_sys::core::LLVMDeleteFunction;
-
 use lexer::{Token, TokenType};
 use error::{SyntaxError, ErrorReason};
-use lang::expr::{Expr, parse_expr};
+use lang::expr::{parse_expr};
+use lang::block::{Block, BlockMember};
 use lang::function::{ConcreteFunction, parse_func_def, parse_extern_func};
-use codegen::{IRContext, IRGenerator, IRModuleProvider, IRResult};
+use lang::anon::AnonymousFunction;
+use lang::cond::parse_cond;
+use lang::for_loop::parse_for_loop;
+use codegen::{IRContext, IRFuncGenerator, IRModuleProvider, IRFuncResult};
 use pipeline::module;
-use lang::types::KoakType;
 
 pub type ParserResult = Result<Vec<ASTNode>, Vec<SyntaxError>>;
 
@@ -22,38 +23,22 @@ pub type ParserResult = Result<Vec<ASTNode>, Vec<SyntaxError>>;
 #[derive(Debug)]
 pub enum ASTNode {
     FunctionDef(Rc<ConcreteFunction>),
-    TopLevelExpr(Expr),
+    TopLevelExpr(BlockMember),
 }
 
-impl IRGenerator for ASTNode {
+impl IRFuncGenerator for ASTNode {
     #[inline]
-    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRResult {
-        match self {
-            &ASTNode::FunctionDef(ref func) => {
+    fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRFuncResult {
+        match *self {
+            ASTNode::FunctionDef(ref func) => {
                 context.push_scope();
-                let old = context.functions.insert(func.name.clone(), func.clone());
                 let r = func.gen_ir(context, module_provider);
-                if r.is_err() {
-                    match old { // Roll back `context.functions`.
-                        Some(old_func) => context.functions.insert(func.name.clone(), old_func),
-                        None => context.functions.remove(&*func.name),
-                    };
-                }
                 context.pop_scope();
                 r
             }
-            &ASTNode::TopLevelExpr(ref expr) => {
-                // This is a bit dirty, but i didn't find a better way
-                let anon1 = ConcreteFunction::new_anonymous((*expr).clone(), KoakType::Void, false);
-                let func = anon1.gen_ir(context, module_provider)?;
-                if let Some(x) = anon1.body_type.into_inner() {
-                    unsafe { LLVMDeleteFunction(func); }
-                    let anon2 = ConcreteFunction::new_anonymous((*expr).clone(), x, true);
-                    let tmp = anon2.gen_ir(context, module_provider)?;
-                    Ok(tmp)
-                } else {
-                    panic!("Top level expression has an unknown type");
-                }
+            ASTNode::TopLevelExpr(ref bm) => {
+                let anon = AnonymousFunction::new(Block::from_member(bm.get_token().clone(), bm.clone()));
+                anon.gen_ir(context, module_provider)
             }
         }
     }
@@ -73,7 +58,7 @@ impl<'a> Parser<'a> {
     #[inline]
     pub fn new(mm: &'a mut module::ModuleManager, mut tokens: Vec<Token>) -> Parser<'a> {
         tokens.reverse();
-        let last_tok = tokens.first().map(|t| t.clone()).unwrap_or(Token::new());
+        let last_tok = tokens.first().cloned().unwrap_or_else(Token::new);
         Parser {
             module_manager: mm,
             tokens: tokens, // Reverse so that the current token is the last one
@@ -88,13 +73,13 @@ impl<'a> Parser<'a> {
 
     #[inline]
     pub fn next_or(&mut self, er: ErrorReason) -> Result<Token, SyntaxError> {
-        self.tokens.pop().ok_or(SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
+        self.tokens.pop().ok_or_else(|| SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
     }
 
     #[inline]
-    pub fn next_of(&mut self, ty: TokenType, er: ErrorReason) -> Result<Token, SyntaxError> {
+    pub fn next_of(&mut self, ty: &TokenType, er: ErrorReason) -> Result<Token, SyntaxError> {
         let token = self.next_or(er.clone())?;
-        if token.token_type == ty {
+        if token.token_type == *ty {
             Ok(token)
         } else {
             Err(SyntaxError::from(&token, er))
@@ -103,7 +88,7 @@ impl<'a> Parser<'a> {
 
     #[inline]
     pub fn peek_or(&self, er: ErrorReason) -> Result<&Token, SyntaxError> {
-        self.tokens.last().ok_or(SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
+        self.tokens.last().ok_or_else(|| SyntaxError::new(er, self.last_tok.line.clone(), self.last_tok.row, self.last_tok.col))
     }
 
     #[inline]
@@ -129,25 +114,33 @@ impl<'a> Parser<'a> {
         self.tokens.pop(); // Eat 'import'
         let t = self.next_or(ErrorReason::ModuleNameExpected).map_err(|e| vec![e])?;
         if let TokenType::StringLitteral(ref s) = t.token_type {
-            self.next_of(TokenType::SemiColon, ErrorReason::MissingSemiColonAfterImport).map_err(|e| vec![e])?;
+            self.next_of(&TokenType::SemiColon, ErrorReason::MissingSemiColonAfterImport).map_err(|e| vec![e])?;
             module::load_module(self.module_manager, &t, s)
         } else {
             Err(vec![SyntaxError::from(&t, ErrorReason::ModuleNameExpected)])
         }
     }
 
-    #[inline]
     fn parse_toplevel_expr(&mut self) -> Result<ASTNode, SyntaxError> {
-        let expr = parse_expr(self)?;
-
-        let colon = self.next_or(ErrorReason::MissingSemiColonAfterTopLevelExpr)?;
-        if let TokenType::SemiColon = colon.token_type { // Check for semi-colon
-            Ok(ASTNode::TopLevelExpr(expr))
-        } else {
-            Err(SyntaxError::from(&colon, ErrorReason::MissingSemiColonAfterTopLevelExpr))
+        let bm = match *self.peek_type().unwrap() {
+            TokenType::If => {
+                self.tokens.pop(); // Eat 'if'
+                BlockMember::Cond(Box::new(parse_cond(self)?))
+            },
+            TokenType::For => {
+                self.tokens.pop(); // Eat 'for'
+                BlockMember::ForLoop(Box::new(parse_for_loop(self)?))
+            },
+            _ => BlockMember::Expr(Box::new(parse_expr(self)?)),
+        };
+        let colon_opt = self.tokens.pop();
+        if let Some(colon) = colon_opt {
+            if colon.token_type != TokenType::SemiColon {
+                return Err(SyntaxError::from(&colon, ErrorReason::MissingSemiColonAfterTopLevelExpr));
+            }
         }
+        Ok(ASTNode::TopLevelExpr(bm))
     }
-
 }
 
 impl<'a> Iterator for Parser<'a> {
@@ -159,10 +152,10 @@ impl<'a> Iterator for Parser<'a> {
             self.tokens.pop();
         }
 
-        let out = match self.peek_type()? {
-            &TokenType::Def => self.parse_function_def(),
-            &TokenType::Extern => self.parse_extern_declaration(),
-            &TokenType::Import => {
+        let out = match *self.peek_type()? {
+            TokenType::Def => self.parse_function_def(),
+            TokenType::Extern => self.parse_extern_declaration(),
+            TokenType::Import => {
                 return Some(self.parse_import());
             },
             _ => self.parse_toplevel_expr()

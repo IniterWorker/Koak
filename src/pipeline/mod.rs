@@ -19,7 +19,7 @@ use args::Args;
 use lexer::{Lexer, Token};
 use parser::{Parser, ASTNode};
 use error::{print_errors, SyntaxError};
-use codegen::{IRContext, IRGenerator, IRModuleProvider};
+use codegen::{IRContext, IRFuncGenerator, IRModuleProvider};
 use jit::JitModuleProvider;
 use self::module::ModuleManager;
 
@@ -102,11 +102,11 @@ impl<'a, T: IRModuleProvider> Pipeline<'a, T> {
         self.generate_ir(nodes, cb_toplevel_expr)
     }
 
-    pub fn print_errors_or_vec<E>(&self, vec: &Vec<E>)
+    pub fn print_errors_or_vec<E>(&self, vec: &[E])
         where E: fmt::Debug + Sized
     {
         print_errors(self.args, &self.errors);
-        if self.errors.len() == 0 {
+        if self.errors.is_empty() {
             for e in vec {
                 println!("{:?}", e);
             }
@@ -119,12 +119,12 @@ impl<'a> Pipeline<'a, JitModuleProvider> {
     /// Print errors or dump code and execute top-level exprsessions.
     ///
     pub fn print_errors_or_exec(&mut self, irs: Vec<LLVMValueRef>, exprs: Vec<LLVMValueRef>) {
-            if self.errors.len() == 0 {
+            if self.errors.is_empty() {
                 for ir in irs {
                     ir.dump();
                 }
                 for func in exprs {
-                    self.module_provider.run_function(func);
+                    self.module_provider.run_function(&self.context, func);
                 }
             } else {
                 print_errors(self.args, &self.errors);
