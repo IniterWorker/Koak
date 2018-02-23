@@ -106,6 +106,24 @@ class RedefinitionDefinitionTests(JITCustomTestCase):
         ])
         self.assertKoakLastErrorContain("Redefinition of function \"f\"")
 
+    def test_redefinition_tricky(self):
+        self.stdin_append([
+            "extern f(x: int) -> int;"
+            "def f(x: int) -> int { x * 3 }"
+            "extern f(x: int) -> int;"
+            "f(5)"
+        ])
+        self.assertKoakLastOutEqual("=> 15\n")
+
+    def test_redefinition_tricky2(self):
+        self.stdin_append([
+            "extern f(x: int) -> int;"
+            "def f(x: int) -> int { x * 3 }"
+            "extern f(x: int) -> int;"
+            "def f(x: int) -> int { x * 4 }"
+        ])
+        self.assertKoakLastErrorContain("Redefinition of function \"f\"")
+
 
 class UnaryOperatorTest(JITCustomTestCase):
 
@@ -360,25 +378,25 @@ class VoidTests(JITCustomTestCase):
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain('The "void" type can only be used as a return type of a function')
 
-    #def test_invalid_void_cond(self):
-    #    self.stdin_append([
-    #        "extern putchar(c: char) -> void;",
-    #        "if 1 < 2 then putchar('a') else 2;",
-    #    ])
-    #    self.assertKoakZeroOut()
-    #    self.assertKoakLastErrorContain('If bodies\'s type doesn\'t match. Got "void" on one side, and "int" on the other side')
+    def test_invalid_void_cond(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "if 1 < 2 putchar('a') else 2;",
+        ])
+        self.assertKoakZeroOut()
+        self.assertKoakLastErrorContain('If bodies\'s type doesn\'t match. Got "void" on one side, and "int" on the other side')
 
-    #def test_void_cond(self):
-    #    self.stdin_append([
-    #        "extern putchar(c: char) -> void;",
-    #        "if 1 < 2 then putchar('a') else putchar('a');",
-    #    ])
-    #    self.assertKoakLastOutEqual("a\n")
+    def test_void_cond(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "if 1 < 2 putchar('a') else putchar('a')",
+        ])
+        self.assertKoakLastOutEqual("a\n")
 
     def test_void_binop_cond(self):
         self.stdin_append([
             "extern putchar(c: char) -> void;",
-            "1 + if 1 < 2 then putchar('a') else putchar('a');",
+            "1 + if 1 < 2 { putchar('a') else putchar('a') }",
         ])
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain('An expression was expected')
@@ -493,18 +511,6 @@ class BlockTests(JITCustomTestCase):
         ])
         self.assertKoakZeroOut()
 
-class SeeminglyRandomButTheyArentTests(JITCustomTestCase):
-    def test_bool_equality(self):
-        self.stdin_append([
-            "true > 0;"
-            "false > 0;"
-        ])
-        self.stdout_expected([
-            "=> true",
-            "=> false",
-        ])
-        self.assertKoakListEqual()
-
 class ConditionTests(JITCustomTestCase):
     def test_cond(self):
         self.stdin_append([
@@ -574,6 +580,28 @@ class ConditionTests(JITCustomTestCase):
             "if putchar('a') putcln('a') else putcln('b');"
         ])
         self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"bool\"")
+
+class SeeminglyRandomButTheyArentTests(JITCustomTestCase):
+    def test_bool_equality(self):
+        self.stdin_append([
+            "true > 0;"
+            "false > 0;"
+        ])
+        self.stdout_expected([
+            "=> true",
+            "=> false",
+        ])
+        self.assertKoakListEqual()
+
+    def test_multiple_exprs(self):
+        self.stdin_append("1;2;3+4;10")
+        self.stdout_expected([
+            "=> 1",
+            "=> 2",
+            "=> 7",
+            "=> 10",
+        ])
+        self.assertKoakListEqual()
 
 
 if __name__ == "__main__":

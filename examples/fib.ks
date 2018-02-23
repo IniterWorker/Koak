@@ -3,12 +3,10 @@
 #
 
 def fib(x: double) -> double {
-    if x < 3.0 {
+    if x < 3.0
         1.0
-    }
-    else {
+    else
         fib(x - 1.0) + fib(x - 2.0)
-    }
 }
 
 fib(42.0); # Computes the 40th number
