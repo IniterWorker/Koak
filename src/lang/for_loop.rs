@@ -25,7 +25,7 @@ use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 
 #[derive(Clone)]
 pub struct ForLoop {
-    pub var: Rc<String>,
+    pub var_name: Rc<String>,
     pub init: Expr,
     pub cond: Expr,
     pub step: Option<Expr>,
@@ -36,7 +36,7 @@ impl ForLoop {
     #[inline]
     pub fn new(var_name: Rc<String>, init: Expr, cond: Expr, step: Option<Expr>, body: Block) -> ForLoop {
         ForLoop {
-            var: var_name,
+            var_name: var_name,
             init: init,
             cond: cond,
             step: step,
@@ -73,47 +73,28 @@ pub fn parse_for_loop(parser: &mut Parser) -> Result<ForLoop, SyntaxError> {
 
 impl IRExprGenerator for ForLoop {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
-        let start_val = self.init.gen_ir(context, module_provider)?;
-
-        let preloop_block = context.builder.get_insert_block();
-        let mut function = preloop_block.get_parent();
-
-        // Blocks used by our for-loop
-        let mut loop_cond_bb = function.append_basic_block_in_context(&mut context.context, "forloop_cond");
-        let mut loop_body_bb = function.append_basic_block_in_context(&mut context.context, "forloop_body");
-        let mut loop_end_bb = function.append_basic_block_in_context(&mut context.context, "forloop_end");
-
-        // Bridge the pre-loop block with the loop_cond block
-        context.builder.build_br(&loop_cond_bb);
-
-        // Put ourself at the beginning of the loop_cond block
-        context.builder.position_at_end(&mut loop_cond_bb);
-
-        // Create the init variable as a PHI node
-        let phi_ty = start_val.ty;
-        let mut phi_var = unsafe {
-            PHINodeRef::from_ref(context.builder.build_phi(phi_ty.as_llvm_ref(), &self.var))
-        };
-        let phi_val = KoakValue::new(phi_var.to_ref(), phi_ty);
-
-        // Start the PHI node with the start value
-        phi_var.add_incoming(
-            vec![start_val.llvm_ref].as_mut_slice(),
-            vec![preloop_block].as_mut_slice(),
-        );
-
-        // Push the init var in a new scope
         context.push_scope();
-        context.add_var(self.var.clone(), phi_val);
 
-        do catch {
+        let r = do catch {
+            // Generate the init value of the iteration variable
+            let start_val = self.init.gen_ir(context, module_provider)?;
 
-            // Compute the next value of the iteration variable
-            let step_val = match self.step {
-                Some(ref expr) => expr.gen_ir(context, module_provider)?,
-                None => KoakValue::new(IntConstRef::get(&IntTypeRef::get_int32(), 1, true).to_ref(), KoakType::Int),
-            };
-            let next_val = KoakCalculable::add(&phi_val, context, &self.init.token, step_val)?;
+            let preloop_block = context.builder.get_insert_block();
+            let mut function = preloop_block.get_parent();
+
+            // Create the iteration variable, give it the starting value
+            context.create_local_var(&function, self.var_name.clone(), start_val);
+
+            // Blocks used by our for-loop
+            let mut loop_cond_bb = function.append_basic_block_in_context(&mut context.context, "forloop_cond");
+            let mut loop_body_bb = function.append_basic_block_in_context(&mut context.context, "forloop_body");
+            let mut loop_end_bb = function.append_basic_block_in_context(&mut context.context, "forloop_end");
+
+            // Bridge the pre-loop block with the loop_cond block
+            context.builder.build_br(&loop_cond_bb);
+
+            // Put ourself at the beginning of the loop_cond block
+            context.builder.position_at_end(&mut loop_cond_bb);
 
             // Compute the end condition
             let cond_expr = self.cond.gen_ir(context, module_provider)?;
@@ -134,24 +115,24 @@ impl IRExprGenerator for ForLoop {
             // Generate body
             self.body.gen_ir(context, module_provider)?;
 
+            // Compute the next value of the iteration variable
+            let step_val = match self.step {
+                Some(ref expr) => expr.gen_ir(context, module_provider)?,
+                None => KoakValue::new(IntConstRef::get(&IntTypeRef::get_int32(), 1, true).to_ref(), KoakType::Int),
+            };
+            let iter_val = context.load_local_var(&self.var_name).unwrap();
+            let next_val = KoakCalculable::add(&iter_val, context, &self.init.token, step_val)?;
+            context.store_local_var(&self.var_name, next_val);
+
             // Bridge the body to the loop block
             context.builder.build_br(&loop_cond_bb);
-
-            // Add a new incoming value for the PHI node to be the end of the body
-            let endbody_block = context.builder.get_insert_block();
-            phi_var.add_incoming(
-                vec![next_val.llvm_ref].as_mut_slice(),
-                vec![endbody_block].as_mut_slice(),
-            );
 
             // New code should be placed after the loop
             context.builder.position_at_end(&mut loop_end_bb);
 
-            context.pop_scope();
             Ok(KoakValue::new_void())
-        }.map_err(|e| {
-            context.pop_scope();
-            e
-        })
+        };
+        context.pop_scope();
+        r
     }
 }

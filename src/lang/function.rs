@@ -193,17 +193,19 @@ impl IRFuncGenerator for ConcreteFunction {
             // Continue only if we are not in an extern declaration
             if let Some(ref body_block) = self.body {
 
+                // Generate entry block
+                let mut bb = func.append_basic_block_in_context(&mut context.context, "entry");
+                context.builder.position_at_end(&mut bb);
+
                 // Update param name and add them to current context
                 for (param_value, arg) in func.get_params().iter().zip(&self.proto.args) {
                     use iron_llvm::core::Value;
 
                     param_value.set_name(&arg.name);
-                    context.add_var(arg.name.clone(), KoakValue::new(*param_value, arg.ty));
+                    context.create_local_var(&func, arg.name.clone(), KoakValue::new(*param_value, arg.ty));
                 }
 
                 // Generate body
-                let mut bb = func.append_basic_block_in_context(&mut context.context, "entry");
-                context.builder.position_at_end(&mut bb);
                 let ret_val = body_block.gen_ir(context, module_provider)?;
 
                 // Append return
@@ -214,9 +216,6 @@ impl IRFuncGenerator for ConcreteFunction {
                     let ret_casted = types::cast_to(&body_block.token, ret_val, self.proto.ret_ty, context)?;
                     context.builder.build_ret(&ret_casted.llvm_ref);
                 }
-
-                use iron_llvm::core::Value;
-                func.dump();
 
                 // Let LLVM Verify our function
                 func.verify(LLVMAbortProcessAction);

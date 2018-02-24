@@ -177,7 +177,7 @@ impl IRExprGenerator for Expr {
             ExprType::CharLiteral(c) => Ok(KoakValue::new(IntConstRef::get(&IntTypeRef::get_int8(), c as u64, true).to_ref(), KoakType::Char)),
             ExprType::IntegerLiteral(n) => Ok(KoakValue::new(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref(), KoakType::Int)),
             ExprType::DoubleLiteral(n) => Ok(KoakValue::new(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref(), KoakType::Double)),
-            ExprType::Variable(ref s) => match context.get_var(s) {
+            ExprType::Variable(ref s) => match context.load_local_var(s) {
                 Some(var) => Ok(var),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),
             },

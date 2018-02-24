@@ -10,10 +10,12 @@ use llvm_sys::prelude::LLVMValueRef;
 use iron_llvm::core;
 use iron_llvm::core::value::FunctionRef;
 use iron_llvm::core::Function;
+use iron_llvm::core::basic_block::BasicBlock;
 
-use error::SyntaxError;
+use error::{SyntaxError, ErrorReason};
 use lang::function::FunctionPrototype;
 use lang::value::KoakValue;
+use lang::types::KoakType;
 
 ///
 /// Structure holding LLVM's stuff, used when generating IR code.
@@ -36,18 +38,37 @@ impl IRContext {
         }
     }
 
-    pub fn get_var(&self, name: &String) -> Option<KoakValue> {
+    pub fn create_local_var(&mut self, function: &FunctionRef, name: Rc<String>, value: KoakValue) {
+        let mut builder = core::Builder::new();
+        let mut bb = function.get_entry();
+        let fi = bb.get_first_instruction();
+
+        builder.position(&mut bb, &fi);
+        let val_ptr = builder.build_alloca(value.ty.as_llvm_ref(), &name);
+        self.builder.build_store(value.llvm_ref, val_ptr);
+
+        let koak_val = KoakValue::new(val_ptr, value.ty);
+        self.scopes.last_mut().unwrap().insert(name.clone(), koak_val);
+    }
+
+    // new_val's type must be valid
+    pub fn store_local_var(&mut self, name: &String, new_val: KoakValue) -> bool {
         for scope in self.scopes.iter().rev() {
-            if let r @ Some(_) = scope.get(name) {
-                return r.cloned();
+            if let Some(val_ptr) = scope.get(name) {
+                self.builder.build_store(new_val.llvm_ref, val_ptr.llvm_ref);
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn load_local_var(&mut self, name: &String) -> Option<KoakValue> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(val_ptr) = scope.get(name) {
+                return Some(KoakValue::new(self.builder.build_load(val_ptr.llvm_ref, name), val_ptr.ty));
             }
         }
         None
-    }
-
-    #[inline]
-    pub fn add_var(&mut self, name: Rc<String>, val: KoakValue) {
-        self.scopes.last_mut().unwrap().insert(name, val);
     }
 
     #[inline]
@@ -132,6 +153,7 @@ pub fn get_pass_manager(m: &core::Module, optimizations: bool) -> core::Function
         pm.add_reassociate_pass();
         pm.add_GVN_pass();
         pm.add_CFG_simplification_pass();
+        pm.add_promote_memory_to_register_pass();
     }
     pm.initialize();
     pm
