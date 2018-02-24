@@ -7,10 +7,9 @@ use std::rc::Rc;
 
 use llvm_sys::LLVMIntPredicate;
 
-use iron_llvm::{LLVMRef, LLVMRefCtor};
+use iron_llvm::{LLVMRef};
 use iron_llvm::core::basic_block::BasicBlock;
 use iron_llvm::core::{Function};
-use iron_llvm::core::instruction::{PHINode, PHINodeRef};
 use iron_llvm::core::types::{IntTypeRef, IntTypeCtor};
 use iron_llvm::core::value::{IntConstRef, IntConstCtor};
 

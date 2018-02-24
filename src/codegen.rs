@@ -12,10 +12,9 @@ use iron_llvm::core::value::FunctionRef;
 use iron_llvm::core::Function;
 use iron_llvm::core::basic_block::BasicBlock;
 
-use error::{SyntaxError, ErrorReason};
+use error::SyntaxError;
 use lang::function::FunctionPrototype;
 use lang::value::KoakValue;
-use lang::types::KoakType;
 
 ///
 /// Structure holding LLVM's stuff, used when generating IR code.

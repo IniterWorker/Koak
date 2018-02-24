@@ -157,26 +157,26 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to bool
-            "to_bool(true);",
-            "to_bool(false);",
+            "as_bool(true);",
+            "as_bool(false);",
 
             # Char to bool
-            "to_bool('a');",
-            "to_bool('b');",
-            "to_bool('\\0');",
+            "as_bool('a');",
+            "as_bool('b');",
+            "as_bool('\\0');",
 
             # Int to bool
-            "to_bool(-1);",
-            "to_bool(0);",
-            "to_bool(1);",
+            "as_bool(-1);",
+            "as_bool(0);",
+            "as_bool(1);",
 
-            # Float to bool
-            "to_bool(-1.5);",
-            "to_bool(-0.001);",
-            "to_bool(0.0);",
-            "to_bool(0.001);",
-            "to_bool(1.0);",
-            "to_bool(2.0);",
+            # Double to bool
+            "as_bool(-1.5);",
+            "as_bool(-0.001);",
+            "as_bool(0.0);",
+            "as_bool(0.001);",
+            "as_bool(1.0);",
+            "as_bool(2.0);",
         ])
         self.stdout_expected([
             "=> true",
@@ -204,23 +204,23 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to char
-            "to_char(false);",
-            "to_char(true);",
+            "as_char(false);",
+            "as_char(true);",
 
             # Char to char
-            "to_char('a');",
-            "to_char('\\t');",
-            "to_char('\\0');",
+            "as_char('a');",
+            "as_char('\\t');",
+            "as_char('\\0');",
 
             # Int to char
-            "to_char(97);",
-            "to_char(98);",
-            "to_char(-1);",
+            "as_char(97);",
+            "as_char(98);",
+            "as_char(-1);",
 
             # Double to char
-            "to_char(99.5);",
-            "to_char(100.99);",
-            "to_char(-1/2);",
+            "as_char(99.5);",
+            "as_char(100.99);",
+            "as_char(-1/2);",
         ])
         self.stdout_expected([
             "=> '\\u{0}'",
@@ -245,26 +245,26 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to Int
-            "to_int(true);",
-            "to_int(false);",
+            "as_int(true);",
+            "as_int(false);",
 
             # Char to Int
-            "to_int('a');",
-            "to_int('b');",
-            "to_int('\\0');",
+            "as_int('a');",
+            "as_int('b');",
+            "as_int('\\0');",
 
             # Int to Int
-            "to_int(-1);",
-            "to_int(0);",
-            "to_int(1);",
+            "as_int(-1);",
+            "as_int(0);",
+            "as_int(1);",
 
-            # Float to Int
-            "to_int(-1.5);",
-            "to_int(-0.001);",
-            "to_int(0.0);",
-            "to_int(0.001);",
-            "to_int(1.0);",
-            "to_int(2.0);",
+            # Double to Int
+            "as_int(-1.5);",
+            "as_int(-0.001);",
+            "as_int(0.0);",
+            "as_int(0.001);",
+            "as_int(1.0);",
+            "as_int(2.0);",
         ])
         self.stdout_expected([
             "=> 1",
@@ -292,22 +292,22 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to Double
-            "to_double(true);",
-            "to_double(false);",
+            "as_double(true);",
+            "as_double(false);",
 
             # Char to Double
-            "to_double('a');",
-            "to_double('b');",
-            "to_double('\\0');",
+            "as_double('a');",
+            "as_double('b');",
+            "as_double('\\0');",
 
             # Int to Double
-            "to_double(-1);",
-            "to_double(0);",
-            "to_double(1);",
+            "as_double(-1);",
+            "as_double(0);",
+            "as_double(1);",
 
-            # Float to Double
-            "to_double(-1.5);",
-            "to_double(1.0/3.0);",
+            # Double to Double
+            "as_double(-1.5);",
+            "as_double(1.0/3.0);",
         ])
         self.stdout_expected([
             "=> 1",
