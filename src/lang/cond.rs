@@ -18,7 +18,7 @@ use lang::expr::{Expr, parse_expr};
 use lang::types;
 use lang::types::KoakType;
 use lang::value::KoakValue;
-use lang::block::{Block, parse_block, parse_block_member};
+use lang::block::{Block, parse_block};
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 
@@ -55,24 +55,12 @@ pub fn parse_cond(parser: &mut Parser) -> Result<Cond, SyntaxError> {
     let cond = parse_expr(parser)?;
 
     // Parse then body with and without brackets
-    let then_body = if let Some(&TokenType::OpenBracket) = parser.peek_type() {
-        parser.tokens.pop(); // Eat '{'
-        parse_block(parser)?
-    } else {
-        let bm = parse_block_member(parser)?;
-        Block::from_member(bm.get_token().clone(), bm)
-    };
+    let then_body = parse_block(parser)?;
     if let Some(&TokenType::Else) = parser.peek_type() {
         parser.tokens.pop(); // Eat 'else'
 
         // Parse else body with and without brackets
-        let else_body = if let Some(&TokenType::OpenBracket) = parser.peek_type() {
-            parser.tokens.pop(); // Eat '{'
-            parse_block(parser)?
-        } else {
-            let bm = parse_block_member(parser)?;
-            Block::from_member(bm.get_token().clone(), bm)
-        };
+        let else_body = parse_block(parser)?;
         Ok(Cond::new(cond, then_body, Some(else_body)))
     } else {
         Ok(Cond::new(cond, then_body, None))

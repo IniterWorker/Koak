@@ -401,6 +401,14 @@ class VoidTests(JITCustomTestCase):
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain('An expression was expected')
 
+    def test_void_as_cond(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "if putchar('a') putchar('b') else putchar('c')",
+        ])
+        self.assertKoakZeroOut()
+        self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"bool\"")
+
 class ForLoopTests(JITCustomTestCase):
     def test_with_step(self):
         self.stdin_append([
@@ -573,6 +581,21 @@ class ConditionTests(JITCustomTestCase):
             "?",
         ])
         self.assertKoakListEqual()
+
+    def test_cond_else_if(self):
+        self.stdin_append([
+            "def test(x: double) -> char { if x < 0 'N' else if x > 0 'P' else '0' }"
+            "test(-1.5);"
+            "test(0);"
+            "test(1.75);"
+        ])
+        self.stdout_expected([
+            "=> 'N'",
+            "=> '0'",
+            "=> 'P'",
+        ])
+        self.assertKoakListEqual()
+
 
     def test_cond_void_cond(self):
         self.stdin_append([

@@ -4,6 +4,11 @@
 
 import "libc";
 
+# Get a character
+def getc() -> char {
+    getchar()
+}
+
 # Print the given character
 def putc(c: char) -> void {
     putchar(c);

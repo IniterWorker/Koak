@@ -18,7 +18,7 @@ use lexer::TokenType;
 use lang::types::{cast_to, KoakType, KoakCalculable};
 use lang::value::KoakValue;
 use lang::expr::{Expr, parse_expr};
-use lang::block::{Block, parse_block, parse_block_member};
+use lang::block::{Block, parse_block};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
@@ -65,14 +65,7 @@ pub fn parse_for_loop(parser: &mut Parser) -> Result<ForLoop, SyntaxError> {
             inc = Some(parse_expr(parser)?);
         }
         parser.next_of(&TokenType::In, ErrorReason::ExpectedInAfterFor)?;
-        let body = if let Some(&TokenType::OpenBracket) = parser.peek_type() {
-            parser.tokens.pop(); // Eat '{'
-            parse_block(parser)?
-        } else {
-            let bm = parse_block_member(parser)?;
-            Block::from_member(bm.get_token().clone(), bm)
-        };
-        Ok(ForLoop::new(var, init, cond, inc, body))
+        Ok(ForLoop::new(var, init, cond, inc, parse_block(parser)?))
     } else {
         Err(SyntaxError::from(&iden, ErrorReason::ForLoopIdentifierExpected))
     }
@@ -135,7 +128,7 @@ impl IRExprGenerator for ForLoop {
             // Create the conditional branches
             context.builder.build_cond_br(cond_res, &loop_body_bb, &loop_end_bb);
 
-            // New code should be placed after the loop
+            // New code should be placed within the loop's body
             context.builder.position_at_end(&mut loop_body_bb);
 
             // Generate body
@@ -144,14 +137,15 @@ impl IRExprGenerator for ForLoop {
             // Bridge the body to the loop block
             context.builder.build_br(&loop_cond_bb);
 
-            // New code should be placed after the loop
-            context.builder.position_at_end(&mut loop_end_bb);
-
-            // Add a new incoming value for the PHI node
+            // Add a new incoming value for the PHI node to be the end of the body
+            let endbody_block = context.builder.get_insert_block();
             phi_var.add_incoming(
                 vec![next_val.llvm_ref].as_mut_slice(),
-                vec![loop_body_bb].as_mut_slice(),
+                vec![endbody_block].as_mut_slice(),
             );
+
+            // New code should be placed after the loop
+            context.builder.position_at_end(&mut loop_end_bb);
 
             context.pop_scope();
             Ok(KoakValue::new_void())

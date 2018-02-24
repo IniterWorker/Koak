@@ -189,6 +189,7 @@ impl<'a> Lexer<'a> {
             "if" => Ok(self.new_token(TokenType::If)),
             "else" => Ok(self.new_token(TokenType::Else)),
             "for" => Ok(self.new_token(TokenType::For)),
+            "while" => Ok(self.new_token(TokenType::While)),
             "in" => Ok(self.new_token(TokenType::In)),
             "true" => Ok(self.new_token(TokenType::True)),
             "false" => Ok(self.new_token(TokenType::False)),

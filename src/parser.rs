@@ -6,12 +6,9 @@ use std::rc::Rc;
 
 use lexer::{Token, TokenType};
 use error::{SyntaxError, ErrorReason};
-use lang::expr::{parse_expr};
-use lang::block::{Block, BlockMember};
+use lang::block::{Block, BlockMember, parse_block_member};
 use lang::function::{ConcreteFunction, parse_func_def, parse_extern_func};
 use lang::anon::AnonymousFunction;
-use lang::cond::parse_cond;
-use lang::for_loop::parse_for_loop;
 use codegen::{IRContext, IRFuncGenerator, IRModuleProvider, IRFuncResult};
 use pipeline::module;
 
@@ -122,17 +119,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_toplevel_expr(&mut self) -> Result<ASTNode, SyntaxError> {
-        let bm = match *self.peek_type().unwrap() {
-            TokenType::If => {
-                self.tokens.pop(); // Eat 'if'
-                BlockMember::Cond(Box::new(parse_cond(self)?))
-            },
-            TokenType::For => {
-                self.tokens.pop(); // Eat 'for'
-                BlockMember::ForLoop(Box::new(parse_for_loop(self)?))
-            },
-            _ => BlockMember::Expr(Box::new(parse_expr(self)?)),
-        };
+        let bm = parse_block_member(self)?;
         let colon_opt = self.tokens.pop();
         if let Some(colon) = colon_opt {
             if colon.token_type != TokenType::SemiColon {

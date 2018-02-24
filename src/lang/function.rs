@@ -18,7 +18,7 @@ use parser::Parser;
 use lang::types;
 use lang::value::KoakValue;
 use lang::types::KoakType;
-use lang::block::{Block, parse_block};
+use lang::block::{Block, parse_bracket_block};
 use codegen::{IRContext, IRModuleProvider, IRExprGenerator, IRFuncGenerator, IRFuncResult};
 use error::{SyntaxError, ErrorReason};
 
@@ -147,7 +147,7 @@ pub fn parse_func_def(parser: &mut Parser) -> Result<ConcreteFunction, SyntaxErr
 
     let proto = parse_prototype(parser)?;
     parser.next_of(&TokenType::OpenBracket, ErrorReason::ExpectedOpenBracket)?;
-    let body = Some(parse_block(parser)?);
+    let body = Some(parse_bracket_block(parser)?);
 
     Ok(ConcreteFunction::new(Rc::new(proto), body))
 }
@@ -214,6 +214,9 @@ impl IRFuncGenerator for ConcreteFunction {
                     let ret_casted = types::cast_to(&body_block.token, ret_val, self.proto.ret_ty, context)?;
                     context.builder.build_ret(&ret_casted.llvm_ref);
                 }
+
+                use iron_llvm::core::Value;
+                func.dump();
 
                 // Let LLVM Verify our function
                 func.verify(LLVMAbortProcessAction);

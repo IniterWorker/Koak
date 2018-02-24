@@ -3,3 +3,4 @@
 #
 
 extern putchar(c: char) -> void;
+extern getchar() -> char;

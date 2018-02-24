@@ -14,6 +14,7 @@ pub enum TokenType {
     If,
     Else,
     For,
+    While,
     In,
     Operator(OperatorType),
     Identifier(Rc<String>),
