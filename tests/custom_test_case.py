@@ -208,11 +208,13 @@ class CustomTestCase(TestCase):
         trace += "STDIN >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stdin)) + "\n" if self.list_stdin is not None else "\n"
         trace += "STDOUT >\n"
-        trace += "".join(map(lambda x: padding + x, self.current_stdout)) + "\n" if self.current_stdout is not None else "\n"
+        trace += "".join(
+            map(lambda x: padding + x, self.current_stdout)) + "\n" if self.current_stdout is not None else "\n"
         trace += "STDOUT (expected) >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stdout)) + "\n" if self.list_stdout is not None else "\n"
         trace += "STDERR >\n"
-        trace += "".join(map(lambda x: padding + x, self.current_stderr)) + "\n" if self.current_stderr is not None else "\n"
+        trace += "".join(
+            map(lambda x: padding + x, self.current_stderr)) + "\n" if self.current_stderr is not None else "\n"
         trace += "STDERR (expected) >\n"
         trace += "".join(map(lambda x: padding + x, self.list_stderr)) + "\n" if self.list_stderr is not None else "\n"
         return trace
@@ -313,7 +315,6 @@ class CustomTestCase(TestCase):
 
         return list_out, list_err
 
-
     def process_input_list(self, input_list: list, args=None) -> (list, list, list, list):
         a, b = self.process_input_list_from_pipe(input_list, args)
         c, d = self.process_input_list_from_file(input_list, args)
@@ -371,3 +372,92 @@ class CustomTestCase(TestCase):
         """
         a, b = last(l1), last(l2)
         self.assertEqual(False, a is None or b is None)
+
+    def assertKoakListContain(self, test_out: object, test_error: object, check_contain: bool, cast_sensitive: bool,
+                              stream_check: Stream = Stream.STDOUT_AND_STDERR):
+        """
+        Assert if one or more line contain search string
+        in stdout
+        :param cast_sensitive:
+        :param check_contain:
+        :param test_out:
+        :param stream_check:
+        :param test_error:
+        :param search:
+        :return:
+        """
+        outs, errs = self.runKoak()
+
+        sentence = ""
+
+        if check_contain:
+            sentence += "Line contain "
+        else:
+            sentence += "Line not contain "
+
+        if not cast_sensitive:
+            outs = list(map(lambda x: str(x).lower(), outs))
+            errs = list(map(lambda x: str(x).lower(), errs))
+            if test_out is not None:
+                test_out = str(test_out).lower()
+            if test_error is not None:
+                test_error = str(test_error).lower()
+            sentence += " (CI) "
+        else:
+            sentence += " (CS) "
+        sentence += " {} in {} "
+
+        if test_out is not None \
+                and (stream_check is Stream.STDOUT_AND_STDERR
+                     or stream_check is Stream.STDOUT):
+            for out in outs:
+                self.assertEqual(check_contain, str(test_out).__contains__(out),
+                                 msg=sentence.format(test_out, out))
+
+        if test_error is not None \
+                and (stream_check is Stream.STDOUT_AND_STDERR
+                     or stream_check is Stream.STDERR):
+            for err in errs:
+                self.assertEqual(False, str(test_error).__contains__(err),
+                                 msg=sentence.format(test_error, err))
+
+    def assertKoakListOutContain(self, search: str, case_sensitive: bool = False):
+        """
+        Assert if one or more line contain search string
+        in stdout
+        :param case_sensitive:
+        :param search:
+        :return:
+        """
+        self.assertKoakListContain(search, None, True, case_sensitive, Stream.STDOUT)
+
+    def assertKoakListErrContain(self, search: str, case_sensitive: bool = False):
+        """
+        Assert if one or more line contain search string
+        in stderr
+        :param case_sensitive:
+        :param search:
+        :return:
+        """
+        self.assertKoakListContain(None, search, True, case_sensitive, Stream.STDERR)
+
+    def assertKoakListOutNotContain(self, search: str, case_sensitive: bool = False):
+        """
+        Assert if one or more line contain search string
+        in stdout
+        :param case_sensitive:
+        :param search:
+        :return:
+        """
+        self.assertKoakListContain(search, None, False, case_sensitive, Stream.STDOUT)
+
+    def assertKoakListErrNotContain(self, search: str, case_sensitive: bool = False):
+        """
+        Assert if one or more line contain search string
+        in stderr
+        :param case_sensitive:
+        :param search:
+        :return:
+        """
+        self.assertKoakListContain(None, search, False, case_sensitive, Stream.STDERR)
+
