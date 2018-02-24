@@ -492,32 +492,56 @@ class ForLoopTests(JITCustomTestCase):
         self.assertKoakLastErrorContain("Undefined variable \"y\"")
 
 class BlockTests(JITCustomTestCase):
-    def block_return_val_1(self):
+    def test_block_return_val_1(self):
         self.stdin_append([
-            "def f() -> int { putchar('a') } ;"
+            'import "../examples/std";',
+            "def f() -> int { putc('a') } ;"
         ])
         self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"int\"")
 
-    def block_return_val_2(self):
+    def test_block_return_val_2(self):
         self.stdin_append([
-            "def f() -> int { putchar('a'); } ;",
-            "f();",
+            'import "../examples/std";',
+            "def f() -> int { putc('a'); } ;",
         ])
-        self.assertKoakZeroOut()
+        self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"int\"")
 
-    def block_return_val_3(self):
+    def test_block_return_val_3(self):
         self.stdin_append([
-            "def f() -> int { putchar('a'); 5 } ;",
+            'import "../examples/std";',
+            "def f() -> int { putc('a'); 5 } ;",
             "f();",
+            "putc('\\n');"
         ])
-        self.assertKoakLastOutEqual("=> 5")
+        self.stdout_expected([
+            "=> 5",
+            "a",
+        ])
+        self.assertKoakListEqual()
 
-    def block_return_val_4(self):
+    def test_block_return_val_4(self):
         self.stdin_append([
-            "def f() -> int { putchar('a'); 5; } ;",
+            'import "../examples/std";',
+            "def f() -> int { putc('a'); 5; } ;",
+        ])
+        self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"int\"")
+
+    def test_nested_blocks_1(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def f(x: int) -> void { if x > 0 for i = 0, i < 10 in putc('0' + i) else for i = 0, i < 10 in putc('9' - i) }",
+            "f(5);",
+            "f(-1);",
+        ])
+        self.assertKoakLastOutEqual("01234567899876543210\n")
+
+    def test_nested_blocks_2(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def f() -> void { for i = 0, i < 10 in for i = 0, i < 10 in putc('0' + i) }",
             "f();",
         ])
-        self.assertKoakZeroOut()
+        self.assertKoakLastOutEqual("0123456789" * 10 + "\n")
 
 class ConditionTests(JITCustomTestCase):
     def test_cond(self):
