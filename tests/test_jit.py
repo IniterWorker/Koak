@@ -11,6 +11,11 @@ class JITCustomTestCase(CustomTestCase):
         self.set_list_args(["-t"])
         self.input_type_piped()
 
+    def tearDown(self):
+        super().tearDown()
+        self.assertKoakListErrNotContain("LLLM", False)
+        self.assertKoakListOutNotContain("LLLM", False)
+
 
 class DefinitionTest(JITCustomTestCase):
 
