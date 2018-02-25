@@ -2,8 +2,6 @@
 //! Koak's values
 //!
 
-extern crate llvm_sys;
-
 use std::ptr;
 use std::rc::Rc;
 
