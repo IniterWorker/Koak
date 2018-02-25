@@ -846,7 +846,6 @@ class ConditionTests(JITCustomTestCase):
         ])
         self.assertKoakListEqual()
 
-
     def test_cond_void_cond(self):
         self.stdin_append([
             'import "../examples/std";'
@@ -1064,33 +1063,23 @@ class ShiftOperatorTest(JITCustomTestCase):
 
     def test_bitshift_bool_shl(self):
         self.stdin_append([
-            ## "true << true;",
-            ## "false << true;",
-            ## "true << false;",
+            "true << true;",
+            "false << true;",
+            "true << false;",
             "false << false;",
         ])
-        self.stdout_expected([
-            ##self._bool_to_str(True << True),
-            ##self._bool_to_str(False << True),
-            ##self._bool_to_str(True << False),
-            self._bool_to_str(False << False),
-        ])
-        self.assertKoakListEqual()
+
+        self.assertKoakNeedError()
 
     def test_bitshift_bool_shr(self):
         self.stdin_append([
-            ## "true >> true;",
-            ## "false >> true;",
+            "true >> true;",
+            "false >> true;",
             "true >> false;",
             "false >> false;",
         ])
-        self.stdout_expected([
-            ## self._bool_to_str(True >> True),
-            ## self._bool_to_str(False >> True),
-            self._bool_to_str(True >> False),
-            self._bool_to_str(False >> False),
-        ])
-        self.assertKoakListEqual()
+
+        self.assertKoakNeedError()
 
 
 class BitwiseOperatorTest(JITCustomTestCase):

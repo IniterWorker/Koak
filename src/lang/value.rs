@@ -2,21 +2,18 @@
 //! Koak's values
 //!
 
-use std::ptr;
-use std::rc::Rc;
-
-use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
-
-use iron_llvm::LLVMRef;
-use iron_llvm::core::value::{RealConstRef, IntConstRef, RealConstCtor, IntConstCtor};
-use iron_llvm::core::types::{IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor};
-
-use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRExprResult};
+use error::{ErrorReason, SyntaxError};
+use iron_llvm::core::types::{IntTypeCtor, IntTypeRef, RealTypeCtor, RealTypeRef};
+use iron_llvm::core::value::{IntConstCtor, IntConstRef, RealConstCtor, RealConstRef};
+use iron_llvm::LLVMRef;
+use lang::types::{calculate_common, KoakType, KoakTypeKind};
 use lexer::Token;
-use lang::types::{KoakType, KoakTypeKind, calculate_common};
+use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
 use llvm_sys::LLVMOpcode;
 use llvm_sys::prelude::LLVMValueRef;
+use std::ptr;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct KoakValue {
@@ -266,27 +263,38 @@ impl KoakValue {
     }
 
     pub fn shl(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
-        let (new_ty, lhs_ref, rhs_ref) = binop!(context, self, &rhs, token)?;
-        let new_val = match new_ty.get_kind() {
-            KoakTypeKind::Integer |
-            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_binop(LLVMOpcode::LLVMShl, lhs_ref, rhs_ref, "shltmp")),
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
-        }?;
-        Ok(KoakValue::new(new_val, new_ty))
+        match (self.ty, rhs.ty) {
+            (_, KoakType::Bool) | (KoakType::Bool, _)
+            => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty))),
+            _ => {
+                let (new_ty, lhs_ref, rhs_ref) = binop!(context, self, &rhs, token)?;
+                let new_val = match new_ty.get_kind() {
+                    KoakTypeKind::Integer
+                    | KoakTypeKind::UnsignedInteger => Ok(context.builder.build_shl(lhs_ref, rhs_ref, "shltmp")),
+                    _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+                }?;
+                Ok(KoakValue::new(new_val, KoakType::Int))
+            }
+        }
     }
 
     pub fn shr(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
-        let (new_ty, lhs_ref, rhs_ref) = binop!(context, self, &rhs, token)?;
-        let new_val = match new_ty.get_kind() {
-            KoakTypeKind::Integer |
-            KoakTypeKind::UnsignedInteger => {
-                context.builder.build_zext(self.llvm_ref, self.ty.as_llvm_ref(), "cast_i1_i32");
-                context.builder.build_zext(rhs.llvm_ref, rhs.ty.as_llvm_ref(), "cast_i1_i32");
-                Ok(context.builder.build_binop(LLVMOpcode::LLVMAShr, lhs_ref, rhs_ref, "shrtmp"))
-            },
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
-        }?;
-        Ok(KoakValue::new(new_val, new_ty))
+        match (self.ty, rhs.ty) {
+            (_, KoakType::Bool) | (KoakType::Bool, _)
+            => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty))),
+            _ => {
+                let (new_ty, lhs_ref, rhs_ref) = binop!(context, self, &rhs, token)?;
+                let new_val = match new_ty.get_kind() {
+                    KoakTypeKind::Integer
+                    | KoakTypeKind::UnsignedInteger
+                    => {
+                        Ok(context.builder.build_ashr(lhs_ref, rhs_ref, "shrtmp"))
+                    },
+                    _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
+                }?;
+                Ok(KoakValue::new(new_val, new_ty))
+            }
+        }
     }
 
     pub fn and(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
@@ -354,7 +362,7 @@ impl KoakValue {
             KoakTypeKind::UnsignedInteger => Ok(context.builder.build_not(self.llvm_ref, "negtmp")),
             _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleUnaryOp(self.ty)))
         }?;
-        Ok(KoakValue::new(new_val, KoakType::Int))
+        Ok(KoakValue::new(new_val, self.ty))
     }
 
     pub fn unary_neg(&self, context: &mut IRContext, token: &Token) -> IRExprResult {
