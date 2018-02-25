@@ -205,7 +205,7 @@ impl IRExprGenerator for Expr {
                     OperatorType::Sub => val.unary_neg(context, &expr.token), // -
                     OperatorType::Compl => val.unary_compl(context, &expr.token), // ~
                     OperatorType::Not => val.unary_not(context, &expr.token), // !
-                    _ => unimplemented!(),
+                    _ => unreachable!(),
                 }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
@@ -216,7 +216,6 @@ impl IRExprGenerator for Expr {
                     lhs.logical_or(context, module_provider, &self.token, rhs)
                 } else {
                     let rhs = rhs.gen_ir(context, module_provider)?;
-
                     match *op {
                         OperatorType::MoreOrEqual => lhs.ge(context, &self.token, rhs), // >=
                         OperatorType::LessOrEqual => lhs.le(context, &self.token, rhs), // <=
