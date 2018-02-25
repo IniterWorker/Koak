@@ -217,6 +217,46 @@ impl KoakValue {
         Ok(())
     }
 
+    pub fn and_assign(&mut self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> Result<(), SyntaxError> {
+        let (name, rhs) = assignop!(context, self, rhs, token)?;
+        let tmp = self.bitwise_and(context, token, rhs)?;
+        self.llvm_ref = tmp.llvm_ref;
+        context.update_local_var(token, name.clone(), self.llvm_ref)?;
+        Ok(())
+    }
+
+    pub fn or_assign(&mut self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> Result<(), SyntaxError> {
+        let (name, rhs) = assignop!(context, self, rhs, token)?;
+        let tmp = self.bitwise_or(context, token, rhs)?;
+        self.llvm_ref = tmp.llvm_ref;
+        context.update_local_var(token, name.clone(), self.llvm_ref)?;
+        Ok(())
+    }
+
+    pub fn xor_assign(&mut self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> Result<(), SyntaxError> {
+        let (name, rhs) = assignop!(context, self, rhs, token)?;
+        let tmp = self.bitwise_xor(context, token, rhs)?;
+        self.llvm_ref = tmp.llvm_ref;
+        context.update_local_var(token, name.clone(), self.llvm_ref)?;
+        Ok(())
+    }
+
+    pub fn shr_assign(&mut self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> Result<(), SyntaxError> {
+        let (name, rhs) = assignop!(context, self, rhs, token)?;
+        let tmp = self.shr(context, token, rhs)?;
+        self.llvm_ref = tmp.llvm_ref;
+        context.update_local_var(token, name.clone(), self.llvm_ref)?;
+        Ok(())
+    }
+
+    pub fn shl_assign(&mut self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> Result<(), SyntaxError> {
+        let (name, rhs) = assignop!(context, self, rhs, token)?;
+        let tmp = self.shl(context, token, rhs)?;
+        self.llvm_ref = tmp.llvm_ref;
+        context.update_local_var(token, name.clone(), self.llvm_ref)?;
+        Ok(())
+    }
+
     pub fn eq(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
         let (new_ty, lhs_ref, rhs_ref) = binop!(context, self, &rhs, token)?;
         let new_val = match new_ty.get_kind() {

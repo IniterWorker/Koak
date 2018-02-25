@@ -945,6 +945,26 @@ class VariableTests(JITCustomTestCase):
         ])
         self.assertKoakListEqual()
 
+    def test_assign_op_advanced(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def func(mut x: char) -> void "
+            "{ "
+            "   putcln('0' + x); "
+            "   x &= 1; putcln('0' + x);"
+            "   x >>= 3; putcln('0' + x); "
+            "   x <<= 1; putcln('0' + x); "
+            "}"
+            "func(3);"
+        ])
+        self.stdout_expected([
+            "3",
+            "1",
+            "0",
+            "0",
+        ])
+        self.assertKoakListEqual()
+
 
 class SeeminglyRandomButTheyArentTests(JITCustomTestCase):
     def test_bool_equality(self):

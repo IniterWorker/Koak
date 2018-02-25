@@ -222,17 +222,41 @@ impl<'a> Lexer<'a> {
                 self.chars.next();
                 Ok(self.new_token(TokenType::Operator(OperatorType::LessOrEqual)))
             },
+            ('&', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::AndAssign)))
+            },
+            ('^', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::XorAssign)))
+            },
+            ('|', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::OrAssign)))
+            },
             ('>', Some('=')) => {
                 self.chars.next();
                 Ok(self.new_token(TokenType::Operator(OperatorType::MoreOrEqual)))
             },
             ('>', Some('>')) => {
                 self.chars.next();
-                Ok(self.new_token(TokenType::Operator(OperatorType::Shr)))
+                match self.chars.peek() {
+                    Some('=') => {
+                        self.chars.next();
+                        Ok(self.new_token(TokenType::Operator(OperatorType::ShrAssign)))
+                    },
+                    _ => Ok(self.new_token(TokenType::Operator(OperatorType::Shr)))
+                }
             },
             ('<', Some('<')) => {
                 self.chars.next();
-                Ok(self.new_token(TokenType::Operator(OperatorType::Shl)))
+                match self.chars.peek() {
+                    Some('=') => {
+                        self.chars.next();
+                        Ok(self.new_token(TokenType::Operator(OperatorType::ShlAssign)))
+                    },
+                    _ => Ok(self.new_token(TokenType::Operator(OperatorType::Shl)))
+                }
             },
             ('&', Some('&')) => {
                 self.chars.next();
