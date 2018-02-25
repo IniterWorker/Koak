@@ -5,9 +5,11 @@
 mod stdin;
 mod file;
 pub mod module;
+mod object;
 
 pub use self::stdin::StdinPipeline as StdinPipeline;
 pub use self::file::FilePipeline as FilePipeline;
+pub use self::object::ObjectPipeline as ObjectPipeline;
 
 use std::fmt;
 use std::rc::Rc;
@@ -22,6 +24,7 @@ use error::{print_errors, SyntaxError};
 use codegen::{IRContext, IRFuncGenerator, IRModuleProvider};
 use jit::JitModuleProvider;
 use self::module::ModuleManager;
+use lang::main::MainFunction;
 
 pub struct Pipeline<'a, T: IRModuleProvider> {
     args: &'a Args,
@@ -29,16 +32,18 @@ pub struct Pipeline<'a, T: IRModuleProvider> {
     pub module_provider: T,
     pub module_manager: ModuleManager,
     pub errors: Vec<SyntaxError>,
+    pub main: MainFunction,
 }
 
 impl<'a, T: IRModuleProvider> Pipeline<'a, T> {
-    pub fn new(args: &'a Args, mp: T) -> Pipeline<'a, T> {
+    pub fn new(args: &'a Args, cli: bool, mp: T) -> Pipeline<'a, T> {
         Pipeline {
             args: args,
-            context: IRContext::new(),
+            context: IRContext::new(cli),
             module_provider: mp,
             module_manager: ModuleManager::new(),
             errors: Vec::new(),
+            main: MainFunction::new(),
         }
     }
 
@@ -87,6 +92,12 @@ impl<'a, T: IRModuleProvider> Pipeline<'a, T> {
             }
         }
         (irs, expr)
+    }
+
+    pub fn gen_main(&mut self) {
+        if let Err(se) = self.main.gen_ir(&mut self.context, &mut self.module_provider) {
+            self.errors.push(se);
+        }
     }
 
     pub fn preload_modules<F>(&mut self, cb_toplevel_expr: F) -> (Vec<LLVMValueRef>, Vec<LLVMValueRef>)

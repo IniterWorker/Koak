@@ -23,7 +23,7 @@ impl<'a> StdinPipeline<'a> {
     }
 
     pub fn run(&mut self) {
-        let mut pipeline = Pipeline::new(self.args, JitModuleProvider::from(self.input.get_name(), self.args.optimization));
+        let mut pipeline = Pipeline::new(self.args, true, JitModuleProvider::from(self.input.get_name(), self.args.optimization));
 
         // Pre-load modules
         let (irs, exprs) = pipeline.preload_modules(|pipeline| {

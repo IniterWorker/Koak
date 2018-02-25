@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use llvm_sys::prelude::LLVMValueRef;
 
+use iron_llvm::target;
 use iron_llvm::core;
 use iron_llvm::core::value::FunctionRef;
 use iron_llvm::core::Function;
@@ -26,17 +27,19 @@ pub struct IRContext {
     pub functions: HashMap<Rc<String>, Rc<FunctionPrototype>>,
     scopes: Vec<HashMap<Rc<String>, KoakValue>>, // of local variables
     pub toplevel: bool,
+    pub cli: bool,
 }
 
 impl IRContext {
     #[inline]
-    pub fn new() -> IRContext {
+    pub fn new(cli: bool) -> IRContext {
         IRContext {
             context: core::Context::get_global(),
             builder: core::Builder::new(),
             functions: HashMap::new(),
             scopes: vec![HashMap::new()], // Push global scope
             toplevel: false,
+            cli: cli,
         }
     }
 
@@ -117,6 +120,9 @@ pub struct SimpleModuleProvider {
 
 impl SimpleModuleProvider {
     pub fn from(name: &str, optimizations: bool) -> SimpleModuleProvider {
+        target::initilalize_native_target();
+        target::initilalize_native_asm_printer();
+
         let m = core::Module::new(name);
         let pm = get_pass_manager(&m, optimizations);
 

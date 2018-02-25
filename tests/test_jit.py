@@ -922,6 +922,13 @@ class VariableTests(JITCustomTestCase):
         ])
         self.assertKoakLastErrorContain("Can't assign an r-value expression")
 
+    def test_void_assign(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let x = putc('a'); }"
+        ])
+        self.assertKoakLastErrorContain("Can't assign variable, operand is of type \"void\"")
+
     def test_assign_op(self):
         self.stdin_append([
             'import "../examples/std";'

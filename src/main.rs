@@ -25,7 +25,7 @@ mod lang;
 mod codegen;
 mod jit;
 
-use pipeline::{FilePipeline, StdinPipeline};
+use pipeline::{FilePipeline, StdinPipeline, ObjectPipeline};
 use input::FileSourceInput;
 use args::Args;
 
@@ -38,8 +38,8 @@ fn main() {
         let mut pipeline = StdinPipeline::new(&args);
         pipeline.run();
     } else {
-        let mut out = false;
-        for file in &args.input {
+        let mut op = ObjectPipeline::new(&args);
+        for (i, file) in args.input.iter().enumerate() {
             let fsi = match FileSourceInput::open(file) {
                 Ok(fsi) => fsi,
                 Err(e) => {
@@ -47,11 +47,13 @@ fn main() {
                     exit(1);
                 },
             };
-            let mut pipeline = FilePipeline::new(fsi, &args);
-            out |= pipeline.run()
+            let mut pipeline = FilePipeline::new(fsi, &args, i == args.input.len() - 1);
+            if let Some(m) = pipeline.run() {
+                op.modules.push((pipeline.input.canon_path, m));
+            } else {
+                exit(1);
+            }
         }
-        if out {
-            exit(1);
-        }
+        unsafe { op.run(); }
     }
 }

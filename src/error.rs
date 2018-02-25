@@ -89,6 +89,7 @@ pub enum ErrorReason {
     ReassigningConstVar(String),
     AssigningRvalue,
     TopLevelAssignForbidden,
+    CantAssignVoidValue,
 }
 
 ///
@@ -180,7 +181,9 @@ impl fmt::Display for ErrorReason {
             ErrorReason::AssigningRvalue =>
                 write!(f, "Can't assign an r-value expression"),
             ErrorReason::TopLevelAssignForbidden =>
-                write!(f, "Top level assigniations are forbidden (yeah, that sucks)"),
+                write!(f, "Top level assigniations in JIT environnement are forbidden (yeah, that sucks)"),
+            ErrorReason::CantAssignVoidValue =>
+                write!(f, "Can't assign variable, operand is of type \"{}\"", purple!("void")),
         }
     }
 }
