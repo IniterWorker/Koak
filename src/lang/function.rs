@@ -234,9 +234,6 @@ impl IRFuncGenerator for ConcreteFunction {
                     context.builder.build_ret(&ret_casted.llvm_ref);
                 }
 
-                use iron_llvm::core::Value;
-                func.dump();
-
                 // Let LLVM Verify our function
                 func.verify(LLVMAbortProcessAction);
 

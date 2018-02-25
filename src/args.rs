@@ -15,6 +15,8 @@ pub struct Args {
     pub optimization: bool,
     pub tiny_errors: bool,
     pub preloaded_modules: Vec<String>,
+    pub link: bool,
+    pub out: Option<String>,
 }
 
 impl Args {
@@ -26,6 +28,8 @@ impl Args {
         opts.optflag("h", "help", "print this help menu");
         opts.optflag("v", "version", "print koak's version");
         opts.optmulti("m", "module", "preloads the given module", "MODULE");
+        opts.optflag("c", "", "compile and assemble, but do not link");
+        opts.optopt("o", "out", "sets the output file name", "NAME");
         opts.optflag("O", "optimization", "enables various optimizations");
         opts.optflag("l", "lexer", "stops after lexing, dumping the generated tokens");
         opts.optflag("p", "parser", "stops after parsing, dumping the generated AST");
@@ -60,6 +64,8 @@ impl Args {
             optimization: matches.opt_present("O"),
             tiny_errors: matches.opt_present("t"),
             preloaded_modules: matches.opt_strs("m"),
+            link: !matches.opt_present("c"),
+            out: matches.opt_str("o"),
         }
     }
 }

@@ -15,3 +15,5 @@ TODO
 .idea
 koak.iml
 *.pyc
+*.o
+a.out
