@@ -12,7 +12,6 @@ use iron_llvm::core::types::{FunctionTypeCtor, FunctionTypeRef};
 
 use lang::block::Block;
 use lang::types::KoakType;
-use lang::types;
 use lang::function::FunctionPrototype;
 use codegen::{IRContext, IRModuleProvider, IRExprGenerator, IRFuncGenerator, IRFuncResult};
 
@@ -78,7 +77,7 @@ impl IRFuncGenerator for AnonymousFunction {
                 context.builder.build_ret_void();
             } else {
                 // Cast it to return type
-                let ret_casted = types::cast_to(&self.body.token, ret_val, body_ty, context)?;
+                let ret_casted = ret_val.cast_to(&self.body.token, context, body_ty)?;
                 context.builder.build_ret(&ret_casted.llvm_ref);
             }
             context.functions.insert(self.name.clone(), Rc::new(FunctionPrototype::new(self.body.token.clone(), self.name.clone(), Vec::new(), body_ty)));

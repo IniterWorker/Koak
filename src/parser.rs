@@ -34,8 +34,11 @@ impl IRFuncGenerator for ASTNode {
                 r
             }
             ASTNode::TopLevelExpr(ref bm) => {
+                context.toplevel = true;
                 let anon = AnonymousFunction::new(Block::from_member(bm.get_token().clone(), bm.clone()));
-                anon.gen_ir(context, module_provider)
+                let r = anon.gen_ir(context, module_provider);
+                context.toplevel = false;
+                r
             }
         }
     }

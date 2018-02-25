@@ -7,14 +7,14 @@ use std::rc::Rc;
 
 use llvm_sys::LLVMIntPredicate;
 
-use iron_llvm::{LLVMRef};
+use iron_llvm::LLVMRef;
 use iron_llvm::core::basic_block::BasicBlock;
-use iron_llvm::core::{Function};
+use iron_llvm::core::Function;
 use iron_llvm::core::types::{IntTypeRef, IntTypeCtor};
 use iron_llvm::core::value::{IntConstRef, IntConstCtor};
 
-use lexer::TokenType;
-use lang::types::{cast_to, KoakType, KoakCalculable};
+use lexer::{TokenType, OperatorType};
+use lang::types::KoakType;
 use lang::value::KoakValue;
 use lang::expr::{Expr, parse_expr};
 use lang::block::{Block, parse_block};
@@ -54,17 +54,21 @@ impl fmt::Debug for ForLoop {
 pub fn parse_for_loop(parser: &mut Parser) -> Result<ForLoop, SyntaxError> {
     let iden = parser.next_or(ErrorReason::ForLoopIdentifierExpected)?;
     if let TokenType::Identifier(var) = iden.token_type {
-        parser.next_of(&TokenType::Equal, ErrorReason::ExpectedAssignmentAfterVarName)?;
-        let init = parse_expr(parser)?;
-        parser.next_of(&TokenType::Comma, ErrorReason::ExpectedComma)?;
-        let cond = parse_expr(parser)?;
-        let mut inc = None;
-        if let Some(&TokenType::Comma) = parser.peek_type() {
-            parser.tokens.pop(); // Eat ','
-            inc = Some(parse_expr(parser)?);
+        let op = parser.next_or(ErrorReason::ExpectedAssignmentAfterVarName)?;
+        if let TokenType::Operator(OperatorType::Assign) = op.token_type {
+            let init = parse_expr(parser)?;
+            parser.next_of(&TokenType::Comma, ErrorReason::ExpectedComma)?;
+            let cond = parse_expr(parser)?;
+            let mut inc = None;
+            if let Some(&TokenType::Comma) = parser.peek_type() {
+                parser.tokens.pop(); // Eat ','
+                inc = Some(parse_expr(parser)?);
+            }
+            parser.next_of(&TokenType::In, ErrorReason::ExpectedInAfterFor)?;
+            Ok(ForLoop::new(var, init, cond, inc, parse_block(parser)?))
+        } else {
+            Err(SyntaxError::from(&op, ErrorReason::ExpectedAssignmentAfterVarName))
         }
-        parser.next_of(&TokenType::In, ErrorReason::ExpectedInAfterFor)?;
-        Ok(ForLoop::new(var, init, cond, inc, parse_block(parser)?))
     } else {
         Err(SyntaxError::from(&iden, ErrorReason::ForLoopIdentifierExpected))
     }
@@ -76,13 +80,13 @@ impl IRExprGenerator for ForLoop {
 
         let r = do catch {
             // Generate the init value of the iteration variable
-            let start_val = self.init.gen_ir(context, module_provider)?;
+            let mut start_val = self.init.gen_ir(context, module_provider)?;
 
             let preloop_block = context.builder.get_insert_block();
             let mut function = preloop_block.get_parent();
 
             // Create the iteration variable, give it the starting value
-            context.create_local_var(&function, self.var_name.clone(), start_val);
+            context.create_stack_var(&function, self.var_name.clone(), start_val);
 
             // Blocks used by our for-loop
             let mut loop_cond_bb = function.append_basic_block_in_context(&mut context.context, "forloop_cond");
@@ -95,15 +99,13 @@ impl IRExprGenerator for ForLoop {
             // Put ourself at the beginning of the loop_cond block
             context.builder.position_at_end(&mut loop_cond_bb);
 
-            // Compute the end condition
+            // Compute the end condition and cast it to bool
             let cond_expr = self.cond.gen_ir(context, module_provider)?;
-
-            // Cast it to bool
-            let bool_expr = cast_to(&self.cond.token, cond_expr, KoakType::Bool, context)?;
+            let cond_bool = cond_expr.cast_to(&self.cond.token, context, KoakType::Bool)?;
 
             // Compare it to zero
             let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();
-            let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, bool_expr.llvm_ref, zero, "condtmp");
+            let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, cond_bool.llvm_ref, zero, "condtmp");
 
             // Create the conditional branches
             context.builder.build_cond_br(cond_res, &loop_body_bb, &loop_end_bb);
@@ -112,16 +114,19 @@ impl IRExprGenerator for ForLoop {
             context.builder.position_at_end(&mut loop_body_bb);
 
             // Generate body
-            self.body.gen_ir(context, module_provider)?;
+            context.push_scope();
+            let r = self.body.gen_ir(context, module_provider);
+            context.pop_scope();
+
+            r?; // Proc errors
 
             // Compute the next value of the iteration variable
             let step_val = match self.step {
                 Some(ref expr) => expr.gen_ir(context, module_provider)?,
                 None => KoakValue::new(IntConstRef::get(&IntTypeRef::get_int32(), 1, true).to_ref(), KoakType::Int),
             };
-            let iter_val = context.load_local_var(&self.var_name).unwrap();
-            let next_val = KoakCalculable::add(&iter_val, context, &self.init.token, step_val)?;
-            context.store_local_var(&self.var_name, next_val);
+            let new_val = context.get_local_var(&self.var_name).unwrap().add(context, &self.init.token, step_val)?;
+            context.update_local_var(&self.init.token, self.var_name.clone(), new_val.llvm_ref)?;
 
             // Bridge the body to the loop block
             context.builder.build_br(&loop_cond_bb);

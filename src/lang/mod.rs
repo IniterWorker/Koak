@@ -13,3 +13,4 @@ pub mod while_loop;
 pub mod block;
 pub mod value;
 pub mod anon;
+pub mod assign;

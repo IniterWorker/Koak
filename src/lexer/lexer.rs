@@ -191,6 +191,8 @@ impl<'a> Lexer<'a> {
             "for" => Ok(self.new_token(TokenType::For)),
             "while" => Ok(self.new_token(TokenType::While)),
             "in" => Ok(self.new_token(TokenType::In)),
+            "let" => Ok(self.new_token(TokenType::Let)),
+            "mut" => Ok(self.new_token(TokenType::Mut)),
             "true" => Ok(self.new_token(TokenType::True)),
             "false" => Ok(self.new_token(TokenType::False)),
             "void" => Ok(self.new_token(TokenType::Void)),
@@ -208,6 +210,26 @@ impl<'a> Lexer<'a> {
                 self.chars.next();
                 Ok(self.new_token(TokenType::Arrow))
             }
+            ('+', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::AddAssign)))
+            },
+            ('-', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::SubAssign)))
+            },
+            ('*', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::MulAssign)))
+            },
+            ('/', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::DivAssign)))
+            },
+            ('%', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::RemAssign)))
+            },
             ('+', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Add))),
             ('-', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Sub))),
             ('*', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Mul))),
@@ -215,7 +237,7 @@ impl<'a> Lexer<'a> {
             ('%', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Rem))),
             ('<', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Less))),
             ('>', _) => Ok(self.new_token(TokenType::Operator(OperatorType::More))),
-            ('=', _) => Ok(self.new_token(TokenType::Equal)),
+            ('=', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Assign))),
             _ => unreachable!(),
         }
     }

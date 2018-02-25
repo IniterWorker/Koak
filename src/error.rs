@@ -84,6 +84,11 @@ pub enum ErrorReason {
     ExpectedInAfterFor,
     UnterminatedBlock,
     ExpectedSemiColorOrCloseBracket,
+    ExpectedAssignmentVarName,
+    VarAlreadyDefined(String),
+    ReassigningConstVar(String),
+    AssigningRvalue,
+    TopLevelAssignForbidden,
 }
 
 ///
@@ -166,6 +171,16 @@ impl fmt::Display for ErrorReason {
                 write!(f, "Unterminated block"),
             ErrorReason::ExpectedSemiColorOrCloseBracket =>
                 write!(f, "Unexpected token: A '{}' or a '{}' is expected", purple!(";"), purple!("}")),
+            ErrorReason::ExpectedAssignmentVarName =>
+                write!(f, "The variable name is expected after a let construct"),
+            ErrorReason::VarAlreadyDefined(ref name) =>
+                write!(f, "The variable \"{}\" is already defined", purple!(name)),
+            ErrorReason::ReassigningConstVar(ref name) =>
+                write!(f, "Can't re-assign the constant variable \"{}\"", purple!(name)),
+            ErrorReason::AssigningRvalue =>
+                write!(f, "Can't assign an r-value expression"),
+            ErrorReason::TopLevelAssignForbidden =>
+                write!(f, "Top level assigniations are forbidden (yeah, that sucks)"),
         }
     }
 }

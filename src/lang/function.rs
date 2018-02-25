@@ -26,22 +26,28 @@ pub struct FunctionArg {
     pub name: Rc<String>,
     pub token: Token,
     pub ty: KoakType,
+    pub is_mut: bool,
 }
 
 impl FunctionArg {
     #[inline]
-    pub fn new(name: Rc<String>, token: Token, ty: KoakType) -> FunctionArg {
+    pub fn new(name: Rc<String>, token: Token, ty: KoakType, is_mut: bool) -> FunctionArg {
         FunctionArg {
             name: name,
             token: token,
             ty: ty,
+            is_mut: is_mut,
         }
     }
 }
 
 impl fmt::Debug for FunctionArg {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}: {}", self.name, self.ty)
+        write!(f, "{}{}: {}",
+            if self.is_mut { "mut " } else { "" },
+            self.name,
+            self.ty
+        )
     }
 }
 
@@ -105,22 +111,31 @@ pub fn parse_prototype(parser: &mut Parser) -> Result<FunctionPrototype, SyntaxE
 
         // Parse args
         let mut args = Vec::new();
-        while let Some(&TokenType::Identifier(_)) = parser.peek_type() {
-            let arg_token = parser.tokens.pop().unwrap();
-            let arg_name = if let TokenType::Identifier(ref s) = arg_token.token_type { s.clone() } else { unreachable!() };
-
-            // Parse argument type
-            parser.next_of(&TokenType::Colon, ErrorReason::ArgTypeExpected)?;
-            let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
-            let koak_type = types::KoakType::from(&ty)?;
-            if let KoakType::Void = koak_type {
-                return Err(SyntaxError::from(&ty, ErrorReason::VoidOnlyReturnType));
+        loop {
+            let mut is_mut = false;
+            if let Some(&TokenType::Mut) = parser.peek_type() {
+                parser.tokens.pop().unwrap(); // Eat 'mut'
+                is_mut = true;
             }
-            args.push(FunctionArg::new(arg_name, arg_token, types::KoakType::from(&ty)?));
+            if let Some(&TokenType::Identifier(_)) = parser.peek_type() {
+                let arg_token = parser.tokens.pop().unwrap();
+                let arg_name = if let TokenType::Identifier(ref s) = arg_token.token_type { s.clone() } else { unreachable!() };
 
-            // Try to eat comma
-            if let TokenType::Comma = parser.peek_or(ErrorReason::ExpectedNextArgOrCloseParenthesis)?.token_type {
-                parser.tokens.pop();
+                // Parse argument type
+                parser.next_of(&TokenType::Colon, ErrorReason::ArgTypeExpected)?;
+                let ty = parser.next_or(ErrorReason::ArgTypeExpected)?;
+                let koak_type = types::KoakType::from(&ty)?;
+                if let KoakType::Void = koak_type {
+                    return Err(SyntaxError::from(&ty, ErrorReason::VoidOnlyReturnType));
+                }
+                args.push(FunctionArg::new(arg_name, arg_token, types::KoakType::from(&ty)?, is_mut));
+
+                // Try to eat comma
+                if let TokenType::Comma = parser.peek_or(ErrorReason::ExpectedNextArgOrCloseParenthesis)?.token_type {
+                    parser.tokens.pop();
+                }
+            } else {
+                break
             }
         }
         parser.next_of(&TokenType::CloseParenthesis, ErrorReason::UnmatchedParenthesis)?;
@@ -167,7 +182,7 @@ impl IRFuncGenerator for ConcreteFunction {
                     // Compare arguments's types
                     let old_func = &context.functions[&self.proto.name];
                     for (prev, arg) in old_func.args.iter().zip(self.proto.args.iter()) {
-                        if prev.ty != arg.ty {
+                        if prev.ty != arg.ty || prev.is_mut != arg.is_mut {
                             return Err(SyntaxError::from(&self.proto.token, ErrorReason::RedefinedFuncWithDiffArgs((*self.proto.name).clone())));
                         }
                     }
@@ -202,7 +217,9 @@ impl IRFuncGenerator for ConcreteFunction {
                     use iron_llvm::core::Value;
 
                     param_value.set_name(&arg.name);
-                    context.create_local_var(&func, arg.name.clone(), KoakValue::new(*param_value, arg.ty));
+                    let mut var = KoakValue::new_var(arg.name.clone(), *param_value, arg.ty);
+                    var.is_mut = arg.is_mut;
+                    context.create_stack_var(&func, arg.name.clone(), var);
                 }
 
                 // Generate body
@@ -213,9 +230,12 @@ impl IRFuncGenerator for ConcreteFunction {
                     context.builder.build_ret_void();
                 } else {
                     // Cast it to return type
-                    let ret_casted = types::cast_to(&body_block.token, ret_val, self.proto.ret_ty, context)?;
+                    let ret_casted = ret_val.cast_to(&body_block.token, context, self.proto.ret_ty)?;
                     context.builder.build_ret(&ret_casted.llvm_ref);
                 }
+
+                use iron_llvm::core::Value;
+                func.dump();
 
                 // Let LLVM Verify our function
                 func.verify(LLVMAbortProcessAction);

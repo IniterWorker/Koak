@@ -16,7 +16,7 @@ use parser::Parser;
 use error::SyntaxError;
 use lang::expr::{Expr, parse_expr};
 use lang::block::{Block, parse_block};
-use lang::types::{KoakType, cast_to};
+use lang::types::KoakType;
 use lang::value::KoakValue;
 use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
 
@@ -65,11 +65,9 @@ impl IRExprGenerator for WhileLoop {
         // Put ourself at the beginning of the loop_cond block
         context.builder.position_at_end(&mut loop_cond_bb);
 
-        // Compute the end condition
+        // Compute the end condition and cast it to bool
         let cond_expr = self.cond.gen_ir(context, module_provider)?;
-
-        // Cast it to bool
-        let bool_expr = cast_to(&self.cond.token, cond_expr, KoakType::Bool, context)?;
+        let bool_expr = cond_expr.cast_to(&self.cond.token, context, KoakType::Bool)?;
 
         // Compare it to zero
         let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();

@@ -633,6 +633,91 @@ class ConditionTests(JITCustomTestCase):
         ])
         self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"bool\"")
 
+class VariableTests(JITCustomTestCase):
+    def test_basic_assign(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let x = 'a'; putcln(x); }"
+            "func();"
+        ])
+        self.stdout_expected([
+            "a"
+        ])
+        self.assertKoakListEqual()
+
+    def test_shadow_param(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(x: double) -> void { let x = 'a'; putcln(x); }"
+            "func(2.5);"
+        ])
+        self.stdout_expected([
+            "a"
+        ])
+        self.assertKoakListEqual()
+
+    def test_basic_mut(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let mut x = 'a'; putcln(x); x = 'b'; putcln(x); }"
+            "func();"
+        ])
+        self.stdout_expected([
+            "a",
+            "b",
+        ])
+        self.assertKoakListEqual()
+
+    def test_reassign_const(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let x = 'a'; putcln(x); x = 'b'; putcln(x); }"
+        ])
+        self.assertKoakLastErrorContain("Can't re-assign the constant variable \"x\"")
+
+    def test_reassign_const_param(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(x: char) -> void { putcln(x); x = 'b'; putcln(x); }"
+        ])
+        self.assertKoakLastErrorContain("Can't re-assign the constant variable \"x\"")
+
+    def test_reassign_mut_param(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(mut x: char) -> void { putcln(x); x = 'b'; putcln(x); }"
+            "func('a');"
+        ])
+        self.stdout_expected([
+            "a",
+            "b",
+        ])
+        self.assertKoakListEqual()
+
+    def test_reassign_rvalue(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let mut x = 5; x + 1 = 'a'; }"
+        ])
+        self.assertKoakLastErrorContain("Can't assign an r-value expression")
+
+    def test_assign_op(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(mut x: char) -> void { putcln('0' + x); x += 2; putcln('0' + x); x -= 3; putcln('0' + x); x *= 2; putcln('0' + x); x /= 2; putcln('0' + x); x %= 3; putcln('0' + x); }"
+            "func(5);"
+        ])
+        self.stdout_expected([
+            "5",
+            "7",
+            "4",
+            "8",
+            "4",
+            "1",
+        ])
+        self.assertKoakListEqual()
+
+
 class SeeminglyRandomButTheyArentTests(JITCustomTestCase):
     def test_bool_equality(self):
         self.stdin_append([

@@ -15,7 +15,6 @@ use iron_llvm::core::basic_block::*;
 use lexer::TokenType;
 use parser::Parser;
 use lang::expr::{Expr, parse_expr};
-use lang::types;
 use lang::types::KoakType;
 use lang::value::KoakValue;
 use lang::block::{Block, parse_block};
@@ -69,15 +68,13 @@ pub fn parse_cond(parser: &mut Parser) -> Result<Cond, SyntaxError> {
 
 impl IRExprGenerator for Cond {
     fn gen_ir(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider) -> IRExprResult {
-        // Calculates the condition
+        // Calculates the condition and cast it to bool
         let cond_expr = self.cond.gen_ir(context, module_provider)?;
-
-        // Cast it to bool
-        let bool_expr = types::cast_to(&self.cond.token, cond_expr, KoakType::Bool, context)?;
+        let cond_bool = cond_expr.cast_to(&self.cond.token, context, KoakType::Bool)?;
 
         // Compare it to zero
         let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();
-        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, bool_expr.llvm_ref, zero, "condtmp");
+        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, cond_bool.llvm_ref, zero, "condtmp");
 
         // Generate the new blocks
         let mut current_block = context.builder.get_insert_block();
