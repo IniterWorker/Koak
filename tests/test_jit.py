@@ -846,6 +846,7 @@ class ConditionTests(JITCustomTestCase):
         ])
         self.assertKoakListEqual()
 
+
     def test_cond_void_cond(self):
         self.stdin_append([
             'import "../examples/std";'

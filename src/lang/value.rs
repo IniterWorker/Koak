@@ -4,18 +4,21 @@
 
 extern crate llvm_sys;
 
-use codegen::{IRContext, IRExprResult};
-use error::{ErrorReason, SyntaxError};
-use iron_llvm::LLVMRef;
-use iron_llvm::core::types::{IntTypeCtor, IntTypeRef, RealTypeCtor, RealTypeRef};
-use iron_llvm::core::value::{IntConstCtor, IntConstRef, RealConstCtor, RealConstRef};
-use lang::types::{calculate_common, KoakType, KoakTypeKind};
-use lexer::Token;
-use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
-use llvm_sys::LLVMOpcode;
-use llvm_sys::prelude::LLVMValueRef;
 use std::ptr;
 use std::rc::Rc;
+
+use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
+
+use iron_llvm::LLVMRef;
+use iron_llvm::core::value::{RealConstRef, IntConstRef, RealConstCtor, IntConstCtor};
+use iron_llvm::core::types::{IntTypeRef, IntTypeCtor, RealTypeRef, RealTypeCtor};
+
+use error::{SyntaxError, ErrorReason};
+use codegen::{IRContext, IRExprResult};
+use lexer::Token;
+use lang::types::{KoakType, KoakTypeKind, calculate_common};
+use llvm_sys::LLVMOpcode;
+use llvm_sys::prelude::LLVMValueRef;
 
 #[derive(Debug, Clone)]
 pub struct KoakValue {

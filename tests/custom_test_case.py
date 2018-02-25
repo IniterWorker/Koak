@@ -464,4 +464,3 @@ class CustomTestCase(TestCase):
         :return:
         """
         self.assertKoakListContain(None, search, False, case_sensitive, Stream.STDERR)
-
