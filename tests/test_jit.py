@@ -858,7 +858,9 @@ class VariableTests(JITCustomTestCase):
     def test_basic_assign(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func() -> void { let x = 'a'; putcln(x); }"
+            "def func() -> void {"
+            "   let x = 'a'; putcln(x);"
+            "}"
             "func();"
         ])
         self.stdout_expected([
@@ -869,7 +871,9 @@ class VariableTests(JITCustomTestCase):
     def test_shadow_param(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func(x: double) -> void { let x = 'a'; putcln(x); }"
+            "def func(x: double) -> void {"
+            "   let x = 'a'; putcln(x);"
+            "}"
             "func(2.5);"
         ])
         self.stdout_expected([
@@ -880,7 +884,9 @@ class VariableTests(JITCustomTestCase):
     def test_basic_mut(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func() -> void { let mut x = 'a'; putcln(x); x = 'b'; putcln(x); }"
+            "def func() -> void {"
+            "   let mut x = 'a'; putcln(x); x = 'b'; putcln(x);"
+            "}"
             "func();"
         ])
         self.stdout_expected([
@@ -892,21 +898,27 @@ class VariableTests(JITCustomTestCase):
     def test_reassign_const(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func() -> void { let x = 'a'; putcln(x); x = 'b'; putcln(x); }"
+            "def func() -> void {"
+            "   let x = 'a'; putcln(x); x = 'b'; putcln(x);"
+            "}"
         ])
         self.assertKoakLastErrorContain("Can't re-assign the constant variable \"x\"")
 
     def test_reassign_const_param(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func(x: char) -> void { putcln(x); x = 'b'; putcln(x); }"
+            "def func(x: char) -> void {"
+            "   putcln(x); x = 'b'; putcln(x);"
+            "}"
         ])
         self.assertKoakLastErrorContain("Can't re-assign the constant variable \"x\"")
 
     def test_reassign_mut_param(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func(mut x: char) -> void { putcln(x); x = 'b'; putcln(x); }"
+            "def func(mut x: char) -> void { "
+            "   putcln(x); x = 'b'; putcln(x);"
+            "}"
             "func('a');"
         ])
         self.stdout_expected([
@@ -918,21 +930,33 @@ class VariableTests(JITCustomTestCase):
     def test_reassign_rvalue(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func() -> void { let mut x = 5; x + 1 = 'a'; }"
+            "def func() -> void { "
+            "   let mut x = 5; x + 1 = 'a';"
+            "}"
         ])
         self.assertKoakLastErrorContain("Can't assign an r-value expression")
 
     def test_void_assign(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func() -> void { let x = putc('a'); }"
+            "def func() -> void { "
+            "   let x = putc('a'); "
+            "}"
         ])
         self.assertKoakLastErrorContain("Can't assign variable, operand is of type \"void\"")
 
     def test_assign_op(self):
         self.stdin_append([
             'import "../examples/std";'
-            "def func(mut x: char) -> void { putcln('0' + x); x += 2; putcln('0' + x); x -= 3; putcln('0' + x); x *= 2; putcln('0' + x); x /= 2; putcln('0' + x); x %= 3; putcln('0' + x); }"
+            "def func(mut x: char) -> void "
+            "{ "
+            "   putcln('0' + x);"
+            "   x += 2; putcln('0' + x);"
+            "   x -= 3; putcln('0' + x);"
+            "   x *= 2; putcln('0' + x);"
+            "   x /= 2; putcln('0' + x);"
+            "   x %= 3; putcln('0' + x);"
+            "}"
             "func(5);"
         ])
         self.stdout_expected([
@@ -952,7 +976,9 @@ class VariableTests(JITCustomTestCase):
             "{ "
             "   putcln('0' + x); "
             "   x &= 1; putcln('0' + x);"
-            "   x >>= 3; putcln('0' + x); "
+            "   x = 3; putcln('0' + x);"
+            "   x >>= 1; putcln('0' + x); "
+            "   x = 3; putcln('0' + x);"
             "   x <<= 1; putcln('0' + x); "
             "}"
             "func(3);"
@@ -960,10 +986,67 @@ class VariableTests(JITCustomTestCase):
         self.stdout_expected([
             "3",
             "1",
-            "0",
-            "0",
+            "3",
+            "1",
+            "3",
+            "6",
         ])
         self.assertKoakListEqual()
+
+    def test_assign_op_advanced_error_void_and(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def func(mut x: char) -> void "
+            "{ "
+            "   x &= putcln('0' + x); "
+            "}"
+            "func(3);"
+        ])
+        self.assertKoakNeedError()
+
+    def test_assign_op_advanced_error_void_or(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def func(mut x: char) -> void "
+            "{ "
+            "   x |= putcln('0' + x); "
+            "}"
+            "func(3);"
+        ])
+        self.assertKoakNeedError()
+
+    def test_assign_op_advanced_error_void_xor(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def func(mut x: char) -> void "
+            "{ "
+            "   x ^= putcln('0' + x); "
+            "}"
+            "func(3);"
+        ])
+        self.assertKoakNeedError()
+
+    def test_assign_op_advanced_error_void_shr(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def func(mut x: char) -> void "
+            "{ "
+            "   x >>= putcln('0' + x); "
+            "}"
+            "func(3);"
+        ])
+        self.assertKoakNeedError()
+
+    def test_assign_op_advanced_error_void_shl(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def func(mut x: char) -> void "
+            "{ "
+            "   x <<= putcln('0' + x); "
+            "}"
+            "func(3);"
+        ])
+        self.assertKoakNeedError()
 
 
 class SeeminglyRandomButTheyArentTests(JITCustomTestCase):
@@ -1274,7 +1357,6 @@ class LogicalOperatorTest(JITCustomTestCase):
             "1",
         ])
         self.assertKoakListEqual()
-
 
 
 if __name__ == "__main__":
