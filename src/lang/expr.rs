@@ -30,7 +30,6 @@ lazy_static! {
         (OperatorType::OrAssign, 10),
         (OperatorType::ShrAssign, 10),
         (OperatorType::ShlAssign, 10),
-        (OperatorType::ShlAssign, 10),
         (OperatorType::LogicalAnd, 20),
         (OperatorType::LogicalOr, 30),
         (OperatorType::Or, 40),
