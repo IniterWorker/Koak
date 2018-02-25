@@ -386,13 +386,13 @@ impl KoakValue {
 
         // Cast ourselves to bool and compare it to zero
         let cond_bool = self.cast_to(token, context, KoakType::Bool)?;
-        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, cond_bool.llvm_ref, zero, "and_condtmp");
+        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, cond_bool.llvm_ref, zero, "or_condtmp");
 
         // Generate blocks
         let lhs_block = context.builder.get_insert_block();
         let mut function = lhs_block.get_parent();
-        let mut rhs_block = function.append_basic_block_in_context(&mut context.context, "and_rhs");
-        let mut merge_block = function.append_basic_block_in_context(&mut context.context, "and_merge");
+        let mut rhs_block = function.append_basic_block_in_context(&mut context.context, "or_rhs");
+        let mut merge_block = function.append_basic_block_in_context(&mut context.context, "or_merge");
 
         // Build conditional bridge
         context.builder.build_cond_br(cond_res, &merge_block, &rhs_block);
@@ -402,7 +402,7 @@ impl KoakValue {
         context.builder.position_at_end(&mut rhs_block);
         let rhs_val = rhs.gen_ir(context, module_provider)?;
         let rhs_bool = rhs_val.cast_to(token, context, KoakType::Bool)?;
-        let rhs_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, rhs_bool.llvm_ref, zero, "and_rhs_condtmp");
+        let rhs_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, rhs_bool.llvm_ref, zero, "or_rhs_condtmp");
 
         // Bridge rhs to merge
         context.builder.build_br(&merge_block);
@@ -411,7 +411,7 @@ impl KoakValue {
         // Generate PHI node that holds return value
         context.builder.position_at_end(&mut merge_block);
         let mut phi = unsafe {
-            PHINodeRef::from_ref(context.builder.build_phi(KoakType::Bool.as_llvm_ref(), "and_phi"))
+            PHINodeRef::from_ref(context.builder.build_phi(KoakType::Bool.as_llvm_ref(), "or_phi"))
         };
         phi.add_incoming(
             vec![cond_res, rhs_res].as_mut_slice(),
