@@ -189,7 +189,10 @@ impl<'a> Lexer<'a> {
             "if" => Ok(self.new_token(TokenType::If)),
             "else" => Ok(self.new_token(TokenType::Else)),
             "for" => Ok(self.new_token(TokenType::For)),
+            "while" => Ok(self.new_token(TokenType::While)),
             "in" => Ok(self.new_token(TokenType::In)),
+            "let" => Ok(self.new_token(TokenType::Let)),
+            "mut" => Ok(self.new_token(TokenType::Mut)),
             "true" => Ok(self.new_token(TokenType::True)),
             "false" => Ok(self.new_token(TokenType::False)),
             "void" => Ok(self.new_token(TokenType::Void)),
@@ -244,6 +247,26 @@ impl<'a> Lexer<'a> {
             ('&', _) => Ok(self.new_token(TokenType::Operator(OperatorType::And))),
             ('^', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Xor))),
             ('|', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Or))),
+            ('+', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::AddAssign)))
+            },
+            ('-', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::SubAssign)))
+            },
+            ('*', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::MulAssign)))
+            },
+            ('/', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::DivAssign)))
+            },
+            ('%', Some('=')) => {
+                self.chars.next();
+                Ok(self.new_token(TokenType::Operator(OperatorType::RemAssign)))
+            },
             ('+', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Add))),
             ('-', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Sub))),
             ('*', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Mul))),
@@ -251,7 +274,7 @@ impl<'a> Lexer<'a> {
             ('%', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Rem))),
             ('<', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Less))),
             ('>', _) => Ok(self.new_token(TokenType::Operator(OperatorType::More))),
-            ('=', _) => Ok(self.new_token(TokenType::Equal)),
+            ('=', _) => Ok(self.new_token(TokenType::Operator(OperatorType::Assign))),
             _ => unreachable!(),
         }
     }

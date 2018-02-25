@@ -14,13 +14,17 @@ use lexer::{Token, TokenType, OperatorType};
 use parser::Parser;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRExprGenerator, IRExprResult, IRModuleProvider};
-use lang::types::KoakCalculable;
-use lang::types;
 use lang::types::KoakType;
 use lang::value::KoakValue;
 
 lazy_static! {
     static ref BIN_OPS: HashMap<OperatorType, i32> = [
+        (OperatorType::Assign, 10),
+        (OperatorType::AddAssign, 10),
+        (OperatorType::SubAssign, 10),
+        (OperatorType::MulAssign, 10),
+        (OperatorType::DivAssign, 10),
+        (OperatorType::RemAssign, 10),
         (OperatorType::LogicalAnd, 20),
         (OperatorType::LogicalOr, 30),
         (OperatorType::Or, 40),
@@ -190,7 +194,7 @@ impl IRExprGenerator for Expr {
             ExprType::CharLiteral(c) => Ok(KoakValue::new(IntConstRef::get(&IntTypeRef::get_int8(), c as u64, true).to_ref(), KoakType::Char)),
             ExprType::IntegerLiteral(n) => Ok(KoakValue::new(IntConstRef::get(&IntTypeRef::get_int32(), n as u64, true).to_ref(), KoakType::Int)),
             ExprType::DoubleLiteral(n) => Ok(KoakValue::new(RealConstRef::get(&RealTypeRef::get_double(), n).to_ref(), KoakType::Double)),
-            ExprType::Variable(ref s) => match context.get_var(s) {
+            ExprType::Variable(ref s) => match context.get_local_var(s) {
                 Some(var) => Ok(var),
                 None => Err(SyntaxError::from(&self.token, ErrorReason::UndefinedVariable(s.to_string()))),
             },
@@ -198,35 +202,41 @@ impl IRExprGenerator for Expr {
                 let val = expr.gen_ir(context, module_provider)?;
                 match *op {
                     OperatorType::Add => Ok(val),
-                    OperatorType::Sub => val.unary_neg(context, &expr.token),
-                    OperatorType::Compl => val.unary_compl(context, &expr.token),
-                    OperatorType::Not => val.unary_not(context, &expr.token),
+                    OperatorType::Sub => val.unary_neg(context, &expr.token), // -
+                    OperatorType::Compl => val.unary_compl(context, &expr.token), // ~
+                    OperatorType::Not => val.unary_not(context, &expr.token), // !
                     _ => unimplemented!(),
                 }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
-                let lhs = lhs.gen_ir(context, module_provider)?;
+                let mut lhs = lhs.gen_ir(context, module_provider)?;
                 let rhs = rhs.gen_ir(context, module_provider)?;
 
                 match *op {
-                    OperatorType::Add => KoakCalculable::add(&lhs, context, &self.token, rhs),
-                    OperatorType::Sub => KoakCalculable::sub(&lhs, context, &self.token, rhs),
-                    OperatorType::Mul => KoakCalculable::mul(&lhs, context, &self.token, rhs),
-                    OperatorType::Div => KoakCalculable::div(&lhs, context, &self.token, rhs),
-                    OperatorType::Rem => KoakCalculable::rem(&lhs, context, &self.token, rhs),
-                    OperatorType::Less => KoakCalculable::lt(&lhs, context, &self.token, rhs),
-                    OperatorType::More => KoakCalculable::gt(&lhs, context, &self.token, rhs),
-                    OperatorType::Equal => KoakCalculable::eq(&lhs, context, &self.token, rhs),
-                    OperatorType::LessOrEqual => KoakCalculable::le(&lhs, context, &self.token, rhs),
-                    OperatorType::MoreOrEqual => KoakCalculable::ge(&lhs, context, &self.token, rhs),
-                    OperatorType::Or => KoakCalculable::bitwise_or(&lhs, context, &self.token, rhs),
-                    OperatorType::And => KoakCalculable::bitwise_and(&lhs, context, &self.token, rhs),
-                    OperatorType::Xor => KoakCalculable::bitwise_xor(&lhs, context, &self.token, rhs),
-                    OperatorType::Shl => KoakCalculable::shl(&lhs, context, &self.token, rhs),
-                    OperatorType::Shr => KoakCalculable::shr(&lhs, context, &self.token, rhs),
-                    OperatorType::LogicalAnd => KoakCalculable::and(&lhs, context, &self.token, rhs),
-                    OperatorType::LogicalOr => KoakCalculable::or(&lhs, context, &self.token, rhs),
-                    OperatorType::Different => KoakCalculable::ne(&lhs, context, &self.token, rhs),
+                    OperatorType::MoreOrEqual => lhs.ge(context, &self.token, rhs), // >=
+                    OperatorType::LessOrEqual => lhs.le(context, &self.token, rhs), // <=
+                    OperatorType::Equal => lhs.eq(context, &self.token, rhs), // ==
+                    OperatorType::Different => lhs.ne(context, &self.token, rhs), // !=
+                    OperatorType::Shr => lhs.shr(context, &self.token, rhs), // >>
+                    OperatorType::Shl => lhs.shl(context, &self.token, rhs), // <<
+                    OperatorType::And => lhs.bitwise_and(context, &self.token, rhs), // &
+                    OperatorType::Or => lhs.bitwise_or(context, &self.token, rhs), // |
+                    OperatorType::Xor => lhs.bitwise_xor(context, &self.token, rhs), // ^
+                    OperatorType::LogicalAnd => lhs.and(context, &self.token, rhs), // &&
+                    OperatorType::LogicalOr => lhs.or(context, &self.token, rhs), // ||
+                    OperatorType::Add => lhs.add(context, &self.token, rhs), // +
+                    OperatorType::Sub => lhs.sub(context, &self.token, rhs), // -
+                    OperatorType::Mul => lhs.mul(context, &self.token, rhs), // *
+                    OperatorType::Div => lhs.div(context, &self.token, rhs), // /
+                    OperatorType::Rem => lhs.rem(context, &self.token, rhs), // %
+                    OperatorType::Less => lhs.lt(context, &self.token, rhs), // <
+                    OperatorType::More => lhs.gt(context, &self.token, rhs), // >
+                    OperatorType::Assign => { lhs.assign(context, &self.token, rhs)?; Ok(lhs) },
+                    OperatorType::AddAssign => { lhs.add_assign(context, &self.token, rhs)?; Ok(lhs) },
+                    OperatorType::SubAssign => { lhs.sub_assign(context, &self.token, rhs)?; Ok(lhs) },
+                    OperatorType::MulAssign => { lhs.mul_assign(context, &self.token, rhs)?; Ok(lhs) },
+                    OperatorType::DivAssign => { lhs.div_assign(context, &self.token, rhs)?; Ok(lhs) },
+                    OperatorType::RemAssign => { lhs.rem_assign(context, &self.token, rhs)?; Ok(lhs) },
                     _ => unimplemented!(),
                 }
             }
@@ -239,8 +249,8 @@ impl IRExprGenerator for Expr {
                     let mut args_value = Vec::new();
                     for (arg, wanted_type) in args.iter().zip(func.args.iter()) {
                         let arg_val = arg.gen_ir(context, module_provider)?;
-                        let cast_arg = types::cast_to(&arg.token, arg_val, wanted_type.ty, context)?;
-                        args_value.push(cast_arg.llvm_ref);
+                        let arg_casted = arg_val.cast_to(&arg.token, context, wanted_type.ty)?;
+                        args_value.push(arg_casted.llvm_ref);
                     }
                     let llvm_ref = module_provider.get_llvm_funcref_by_name(&func.name as &String).unwrap().0;
                     if let KoakType::Void = func.ret_ty {

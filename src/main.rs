@@ -30,7 +30,6 @@ use input::FileSourceInput;
 use args::Args;
 
 fn main() {
-
     // Parse args
     let args = Args::parse_args();
 

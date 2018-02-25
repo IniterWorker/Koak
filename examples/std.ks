@@ -4,6 +4,11 @@
 
 import "libc";
 
+# Get a character
+def getc() -> char {
+    getchar()
+}
+
 # Print the given character
 def putc(c: char) -> void {
     putchar(c);
@@ -16,21 +21,21 @@ def putcln(c: char) -> void {
 }
 
 # Cast the given argument to bool
-def to_bool(x: bool) -> bool {
+def as_bool(x: bool) -> bool {
     x
 }
 
 # Cast the given argument to char
-def to_char(x: char) -> char {
+def as_char(x: char) -> char {
     x
 }
 
 # Cast the given argument to int
-def to_int(x: int) -> int {
+def as_int(x: int) -> int {
     x
 }
 
 # Cast the given argument to double
-def to_double(x: double) -> double {
+def as_double(x: double) -> double {
     x
 }

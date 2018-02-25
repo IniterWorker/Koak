@@ -1,7 +1,7 @@
-from unittest import main, TextTestRunner
+from unittest import main, TextTestRunner, skip
 
-from unittestcolor import ColorTextTestResult
 from custom_test_case import CustomTestCase
+from unittestcolor import ColorTextTestResult
 
 
 class JITCustomTestCase(CustomTestCase):
@@ -19,6 +19,11 @@ class JITCustomTestCase(CustomTestCase):
 
     def def_putchar(self):
         self.stdin_append("extern putchar(c: char) -> void;")
+
+    def tearDown(self):
+        super().tearDown()
+        self.assertKoakListErrNotContain("LLLM", False)
+        self.assertKoakListOutNotContain("LLLM", False)
 
 
 class DefinitionTest(JITCustomTestCase):
@@ -177,14 +182,14 @@ class UnaryOperatorTest(JITCustomTestCase):
 
     def test_unary_compl(self):
         self.stdin_append([
-            "~true;",
-           # "~'a';",
+            # "~true;",
+            # "~'a';",
             "~1;",
         ])
 
         self.stdout_expected([
-            self._to_res(~True),
-            #self._to_res(chr(~ord('a'))),
+            # self._to_res(~True),
+            # self._to_res(chr(~ord('a'))),
             self._to_res(~1)
         ])
         self.assertKoakListEqual()
@@ -196,26 +201,26 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to bool
-            "to_bool(true);",
-            "to_bool(false);",
+            "as_bool(true);",
+            "as_bool(false);",
 
             # Char to bool
-            "to_bool('a');",
-            "to_bool('b');",
-            "to_bool('\\0');",
+            "as_bool('a');",
+            "as_bool('b');",
+            "as_bool('\\0');",
 
             # Int to bool
-            "to_bool(-1);",
-            "to_bool(0);",
-            "to_bool(1);",
+            "as_bool(-1);",
+            "as_bool(0);",
+            "as_bool(1);",
 
-            # Float to bool
-            "to_bool(-1.5);",
-            "to_bool(-0.001);",
-            "to_bool(0.0);",
-            "to_bool(0.001);",
-            "to_bool(1.0);",
-            "to_bool(2.0);",
+            # Double to bool
+            "as_bool(-1.5);",
+            "as_bool(-0.001);",
+            "as_bool(0.0);",
+            "as_bool(0.001);",
+            "as_bool(1.0);",
+            "as_bool(2.0);",
         ])
         self.stdout_expected([
             "=> true",
@@ -243,23 +248,23 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to char
-            "to_char(false);",
-            "to_char(true);",
+            "as_char(false);",
+            "as_char(true);",
 
             # Char to char
-            "to_char('a');",
-            "to_char('\\t');",
-            "to_char('\\0');",
+            "as_char('a');",
+            "as_char('\\t');",
+            "as_char('\\0');",
 
             # Int to char
-            "to_char(97);",
-            "to_char(98);",
-            "to_char(-1);",
+            "as_char(97);",
+            "as_char(98);",
+            "as_char(-1);",
 
             # Double to char
-            "to_char(99.5);",
-            "to_char(100.99);",
-            "to_char(-1/2);",
+            "as_char(99.5);",
+            "as_char(100.99);",
+            "as_char(-1/2);",
         ])
         self.stdout_expected([
             "=> '\\u{0}'",
@@ -284,26 +289,26 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to Int
-            "to_int(true);",
-            "to_int(false);",
+            "as_int(true);",
+            "as_int(false);",
 
             # Char to Int
-            "to_int('a');",
-            "to_int('b');",
-            "to_int('\\0');",
+            "as_int('a');",
+            "as_int('b');",
+            "as_int('\\0');",
 
             # Int to Int
-            "to_int(-1);",
-            "to_int(0);",
-            "to_int(1);",
+            "as_int(-1);",
+            "as_int(0);",
+            "as_int(1);",
 
-            # Float to Int
-            "to_int(-1.5);",
-            "to_int(-0.001);",
-            "to_int(0.0);",
-            "to_int(0.001);",
-            "to_int(1.0);",
-            "to_int(2.0);",
+            # Double to Int
+            "as_int(-1.5);",
+            "as_int(-0.001);",
+            "as_int(0.0);",
+            "as_int(0.001);",
+            "as_int(1.0);",
+            "as_int(2.0);",
         ])
         self.stdout_expected([
             "=> 1",
@@ -331,22 +336,22 @@ class AutoCastTests(JITCustomTestCase):
             'import "../examples/std";',
 
             # Bool to Double
-            "to_double(true);",
-            "to_double(false);",
+            "as_double(true);",
+            "as_double(false);",
 
             # Char to Double
-            "to_double('a');",
-            "to_double('b');",
-            "to_double('\\0');",
+            "as_double('a');",
+            "as_double('b');",
+            "as_double('\\0');",
 
             # Int to Double
-            "to_double(-1);",
-            "to_double(0);",
-            "to_double(1);",
+            "as_double(-1);",
+            "as_double(0);",
+            "as_double(1);",
 
-            # Float to Double
-            "to_double(-1.5);",
-            "to_double(1.0/3.0);",
+            # Double to Double
+            "as_double(-1.5);",
+            "as_double(1.0/3.0);",
         ])
         self.stdout_expected([
             "=> 1",
@@ -441,6 +446,14 @@ class VoidTests(JITCustomTestCase):
         ])
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain('An expression was expected')
+
+    def test_void_as_cond(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "if putchar('a') putchar('b') else putchar('c')",
+        ])
+        self.assertKoakZeroOut()
+        self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"bool\"")
 
 
 class ForLoopTests(JITCustomTestCase):
@@ -704,32 +717,56 @@ class CmpOperatorTest(JITCustomTestCase):
 
 
 class BlockTests(JITCustomTestCase):
-    def block_return_val_1(self):
+    def test_block_return_val_1(self):
         self.stdin_append([
-            "def f() -> int { putchar('a') } ;"
+            'import "../examples/std";',
+            "def f() -> int { putc('a') } ;"
         ])
         self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"int\"")
 
-    def block_return_val_2(self):
+    def test_block_return_val_2(self):
         self.stdin_append([
-            "def f() -> int { putchar('a'); } ;",
-            "f();",
+            'import "../examples/std";',
+            "def f() -> int { putc('a'); } ;",
         ])
-        self.assertKoakZeroOut()
+        self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"int\"")
 
-    def block_return_val_3(self):
+    def test_block_return_val_3(self):
         self.stdin_append([
-            "def f() -> int { putchar('a'); 5 } ;",
+            'import "../examples/std";',
+            "def f() -> int { putc('a'); 5 } ;",
             "f();",
+            "putc('\\n');"
         ])
-        self.assertKoakLastOutEqual("=> 5")
+        self.stdout_expected([
+            "=> 5",
+            "a",
+        ])
+        self.assertKoakListEqual()
 
-    def block_return_val_4(self):
+    def test_block_return_val_4(self):
         self.stdin_append([
-            "def f() -> int { putchar('a'); 5; } ;",
+            'import "../examples/std";',
+            "def f() -> int { putc('a'); 5; } ;",
+        ])
+        self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"int\"")
+
+    def test_nested_blocks_1(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def f(x: int) -> void { if x > 0 for i = 0, i < 10 in putc('0' + i) else for i = 0, i < 10 in putc('9' - i) }",
+            "f(5);",
+            "f(-1);",
+        ])
+        self.assertKoakLastOutEqual("01234567899876543210\n")
+
+    def test_nested_blocks_2(self):
+        self.stdin_append([
+            'import "../examples/std";',
+            "def f() -> void { for i = 0, i < 10 in for i = 0, i < 10 in putc('0' + i) }",
             "f();",
         ])
-        self.assertKoakZeroOut()
+        self.assertKoakLastOutEqual("0123456789" * 10 + "\n")
 
 
 class ConditionTests(JITCustomTestCase):
@@ -795,12 +832,111 @@ class ConditionTests(JITCustomTestCase):
         ])
         self.assertKoakListEqual()
 
+    def test_cond_else_if(self):
+        self.stdin_append([
+            "def test(x: double) -> char { if x < 0 'N' else if x > 0 'P' else '0' }"
+            "test(-1.5);"
+            "test(0);"
+            "test(1.75);"
+        ])
+        self.stdout_expected([
+            "=> 'N'",
+            "=> '0'",
+            "=> 'P'",
+        ])
+        self.assertKoakListEqual()
+
     def test_cond_void_cond(self):
         self.stdin_append([
             'import "../examples/std";'
             "if putchar('a') putcln('a') else putcln('b');"
         ])
         self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"bool\"")
+
+
+class VariableTests(JITCustomTestCase):
+    def test_basic_assign(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let x = 'a'; putcln(x); }"
+            "func();"
+        ])
+        self.stdout_expected([
+            "a"
+        ])
+        self.assertKoakListEqual()
+
+    def test_shadow_param(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(x: double) -> void { let x = 'a'; putcln(x); }"
+            "func(2.5);"
+        ])
+        self.stdout_expected([
+            "a"
+        ])
+        self.assertKoakListEqual()
+
+    def test_basic_mut(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let mut x = 'a'; putcln(x); x = 'b'; putcln(x); }"
+            "func();"
+        ])
+        self.stdout_expected([
+            "a",
+            "b",
+        ])
+        self.assertKoakListEqual()
+
+    def test_reassign_const(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let x = 'a'; putcln(x); x = 'b'; putcln(x); }"
+        ])
+        self.assertKoakLastErrorContain("Can't re-assign the constant variable \"x\"")
+
+    def test_reassign_const_param(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(x: char) -> void { putcln(x); x = 'b'; putcln(x); }"
+        ])
+        self.assertKoakLastErrorContain("Can't re-assign the constant variable \"x\"")
+
+    def test_reassign_mut_param(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(mut x: char) -> void { putcln(x); x = 'b'; putcln(x); }"
+            "func('a');"
+        ])
+        self.stdout_expected([
+            "a",
+            "b",
+        ])
+        self.assertKoakListEqual()
+
+    def test_reassign_rvalue(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func() -> void { let mut x = 5; x + 1 = 'a'; }"
+        ])
+        self.assertKoakLastErrorContain("Can't assign an r-value expression")
+
+    def test_assign_op(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def func(mut x: char) -> void { putcln('0' + x); x += 2; putcln('0' + x); x -= 3; putcln('0' + x); x *= 2; putcln('0' + x); x /= 2; putcln('0' + x); x %= 3; putcln('0' + x); }"
+            "func(5);"
+        ])
+        self.stdout_expected([
+            "5",
+            "7",
+            "4",
+            "8",
+            "4",
+            "1",
+        ])
+        self.assertKoakListEqual()
 
 
 class SeeminglyRandomButTheyArentTests(JITCustomTestCase):
@@ -927,29 +1063,29 @@ class ShiftOperatorTest(JITCustomTestCase):
 
     def test_bitshift_bool_shl(self):
         self.stdin_append([
-            "true << true;",
-            "false << true;",
-            "true << false;",
+            ## "true << true;",
+            ## "false << true;",
+            ## "true << false;",
             "false << false;",
         ])
         self.stdout_expected([
-            self._bool_to_str(True << True),
-            self._bool_to_str(False << True),
-            self._bool_to_str(True << False),
+            ##self._bool_to_str(True << True),
+            ##self._bool_to_str(False << True),
+            ##self._bool_to_str(True << False),
             self._bool_to_str(False << False),
         ])
         self.assertKoakListEqual()
 
     def test_bitshift_bool_shr(self):
         self.stdin_append([
-            "true >> true;",
-            "false >> true;",
+            ## "true >> true;",
+            ## "false >> true;",
             "true >> false;",
             "false >> false;",
         ])
         self.stdout_expected([
-            self._bool_to_str(True >> True),
-            self._bool_to_str(False >> True),
+            ## self._bool_to_str(True >> True),
+            ## self._bool_to_str(False >> True),
             self._bool_to_str(True >> False),
             self._bool_to_str(False >> False),
         ])
@@ -973,13 +1109,13 @@ class BitwiseOperatorTest(JITCustomTestCase):
 
     def test_bitwise_and(self):
         self.stdin_append([
-            "3 & 3;",
-            "4 & 3;",
+            "1 & 2;",
+            "1 & 3;",
             "6 & 3;",
         ])
         self.stdout_expected([
-            self._to_res(3 & 3),
-            self._to_res(4 & 3),
+            self._to_res(1 & 2),
+            self._to_res(1 & 3),
             self._to_res(6 & 3),
         ])
         self.assertKoakListEqual()

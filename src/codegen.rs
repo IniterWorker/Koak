@@ -10,8 +10,10 @@ use llvm_sys::prelude::LLVMValueRef;
 use iron_llvm::core;
 use iron_llvm::core::value::FunctionRef;
 use iron_llvm::core::Function;
+use iron_llvm::core::basic_block::BasicBlock;
 
-use error::SyntaxError;
+use lexer::Token;
+use error::{SyntaxError, ErrorReason};
 use lang::function::FunctionPrototype;
 use lang::value::KoakValue;
 
@@ -23,6 +25,7 @@ pub struct IRContext {
     pub builder: core::Builder,
     pub functions: HashMap<Rc<String>, Rc<FunctionPrototype>>,
     scopes: Vec<HashMap<Rc<String>, KoakValue>>, // of local variables
+    pub toplevel: bool,
 }
 
 impl IRContext {
@@ -32,22 +35,43 @@ impl IRContext {
             context: core::Context::get_global(),
             builder: core::Builder::new(),
             functions: HashMap::new(),
-            scopes: Vec::new(),
+            scopes: vec![HashMap::new()], // Push global scope
+            toplevel: false,
         }
     }
 
-    pub fn get_var(&self, name: &String) -> Option<KoakValue> {
+    pub fn create_stack_var(&mut self, function: &FunctionRef, name: Rc<String>, value: KoakValue) {
+        let mut builder = core::Builder::new();
+        let mut bb = function.get_entry();
+        let fi = bb.get_first_instruction();
+
+        builder.position(&mut bb, &fi);
+        let val_ptr = builder.build_alloca(value.ty.as_llvm_ref(), &name);
+        self.builder.build_store(value.llvm_ref, val_ptr);
+
+        let mut koak_val = value.copy_and_reassign(val_ptr);
+        koak_val.name = Some(name.clone());
+        self.scopes.last_mut().unwrap().insert(name, koak_val);
+    }
+
+    // new_val's type must be valid
+    pub fn update_local_var(&mut self, token: &Token, name: Rc<String>, new_val: LLVMValueRef) -> IRExprResult {
         for scope in self.scopes.iter().rev() {
-            if let r @ Some(_) = scope.get(name) {
-                return r.cloned();
+            if let Some(val_ptr) = scope.get(&name) {
+                self.builder.build_store(new_val, val_ptr.llvm_ref);
+                return Ok(val_ptr.copy_and_reassign(new_val));
+            }
+        }
+        Err(SyntaxError::from(token, ErrorReason::UndefinedVariable(name.to_string())))
+    }
+
+    pub fn get_local_var(&mut self, name: &String) -> Option<KoakValue> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(val_ptr) = scope.get(name) {
+                return Some(val_ptr.copy_and_reassign(self.builder.build_load(val_ptr.llvm_ref, name)));
             }
         }
         None
-    }
-
-    #[inline]
-    pub fn add_var(&mut self, name: Rc<String>, val: KoakValue) {
-        self.scopes.last_mut().unwrap().insert(name, val);
     }
 
     #[inline]
@@ -132,6 +156,8 @@ pub fn get_pass_manager(m: &core::Module, optimizations: bool) -> core::Function
         pm.add_reassociate_pass();
         pm.add_GVN_pass();
         pm.add_CFG_simplification_pass();
+        pm.add_dead_store_elimination_pass();
+        pm.add_promote_memory_to_register_pass();
     }
     pm.initialize();
     pm
