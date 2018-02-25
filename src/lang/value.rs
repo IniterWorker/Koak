@@ -10,7 +10,6 @@ use iron_llvm::LLVMRef;
 use lang::types::{calculate_common, KoakType, KoakTypeKind};
 use lexer::Token;
 use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
-use llvm_sys::LLVMOpcode;
 use llvm_sys::prelude::LLVMValueRef;
 use std::ptr;
 use std::rc::Rc;
@@ -349,8 +348,10 @@ impl KoakValue {
     pub fn unary_not(&self, context: &mut IRContext, token: &Token) -> IRExprResult {
         let new_val = match self.ty.get_kind() {
             KoakTypeKind::Integer |
-            KoakTypeKind::UnsignedInteger |
-            KoakTypeKind::FloatingPoint => Ok(context.builder.build_is_null(self.llvm_ref, "nottmp")),
+            KoakTypeKind::UnsignedInteger => Ok(context.builder.build_is_null(self.llvm_ref, "noticmptmp")),
+            KoakTypeKind::FloatingPoint => {
+                Ok(context.builder.build_fcmp(LLVMRealPredicate::LLVMRealOEQ, self.llvm_ref, RealConstRef::get(&RealTypeRef::get_double(), 0f64).to_ref(), "notfcmptmp"))
+            }
             _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleUnaryOp(self.ty)))
         }?;
         Ok(KoakValue::new(new_val, KoakType::Bool))
