@@ -205,7 +205,7 @@ impl IRExprGenerator for Expr {
                     OperatorType::Sub => val.unary_neg(context, &expr.token), // -
                     OperatorType::Compl => val.unary_compl(context, &expr.token), // ~
                     OperatorType::Not => val.unary_not(context, &expr.token), // !
-                    _ => unimplemented!(),
+                    _ => unreachable!(),
                 }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
@@ -237,7 +237,7 @@ impl IRExprGenerator for Expr {
                     OperatorType::MulAssign => { lhs.mul_assign(context, &self.token, rhs)?; Ok(lhs) },
                     OperatorType::DivAssign => { lhs.div_assign(context, &self.token, rhs)?; Ok(lhs) },
                     OperatorType::RemAssign => { lhs.rem_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    _ => unimplemented!(),
+                    _ => unreachable!(),
                 }
             }
             ExprType::Call(ref name, ref args) => {
