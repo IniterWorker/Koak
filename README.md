@@ -93,13 +93,13 @@ else:                                             ; preds = %entry
   - [X] Binary operators
   - [X] Control flow (`if`/`then`/`else`)
   - [X] Loops (`for`/`while`)
-  - [ ] Mutable variables
+  - [X] Mutable variables
   - [X] Type system (`void`, `bool`, `char`, `int`, `double` etc.)
   - [X] Blocks (`{` and `}`)
-  - [ ] Strings
   - [X] Module system (`import`)
-- [ ] Execution and compilation
+  - [ ] Strings
+- [X] Execution and compilation
   - [X] JIT Integration
-  - [ ] Compilation into object file (.o)
-  - [ ] Linking all object file into a final binary
-  - [ ] Linking with the c library
+  - [X] Compilation into object file (.o)
+  - [X] Linking all object file into a final binary
+  - [X] Linking with the c library

@@ -216,39 +216,42 @@ impl IRExprGenerator for Expr {
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
                 let mut lhs = lhs.gen_ir(context, module_provider)?;
-                let rhs = rhs.gen_ir(context, module_provider)?;
-
-                match *op {
-                    OperatorType::MoreOrEqual => lhs.ge(context, &self.token, rhs), // >=
-                    OperatorType::LessOrEqual => lhs.le(context, &self.token, rhs), // <=
-                    OperatorType::Equal => lhs.eq(context, &self.token, rhs), // ==
-                    OperatorType::Different => lhs.ne(context, &self.token, rhs), // !=
-                    OperatorType::Shr => lhs.shr(context, &self.token, rhs), // >>
-                    OperatorType::Shl => lhs.shl(context, &self.token, rhs), // <<
-                    OperatorType::And => lhs.bitwise_and(context, &self.token, rhs), // &
-                    OperatorType::Or => lhs.bitwise_or(context, &self.token, rhs), // |
-                    OperatorType::Xor => lhs.bitwise_xor(context, &self.token, rhs), // ^
-                    OperatorType::LogicalAnd => lhs.and(context, &self.token, rhs), // &&
-                    OperatorType::LogicalOr => lhs.or(context, &self.token, rhs), // ||
-                    OperatorType::Add => lhs.add(context, &self.token, rhs), // +
-                    OperatorType::Sub => lhs.sub(context, &self.token, rhs), // -
-                    OperatorType::Mul => lhs.mul(context, &self.token, rhs), // *
-                    OperatorType::Div => lhs.div(context, &self.token, rhs), // /
-                    OperatorType::Rem => lhs.rem(context, &self.token, rhs), // %
-                    OperatorType::Less => lhs.lt(context, &self.token, rhs), // <
-                    OperatorType::More => lhs.gt(context, &self.token, rhs), // >
-                    OperatorType::Assign => { lhs.assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::AddAssign => { lhs.add_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::SubAssign => { lhs.sub_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::MulAssign => { lhs.mul_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::DivAssign => { lhs.div_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::RemAssign => { lhs.rem_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::XorAssign => { lhs.xor_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::AndAssign => { lhs.and_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::OrAssign => { lhs.or_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::ShrAssign => { lhs.shr_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    OperatorType::ShlAssign => { lhs.shl_assign(context, &self.token, rhs)?; Ok(lhs) },
-                    _ => unreachable!(),
+                if *op == OperatorType::LogicalAnd {
+                    lhs.logical_and(context, module_provider, &self.token, rhs)
+                } else if *op == OperatorType::LogicalOr {
+                    lhs.logical_or(context, module_provider, &self.token, rhs)
+                } else {
+                    let rhs = rhs.gen_ir(context, module_provider)?;
+                    match *op {
+                        OperatorType::MoreOrEqual => lhs.ge(context, &self.token, rhs), // >=
+                        OperatorType::LessOrEqual => lhs.le(context, &self.token, rhs), // <=
+                        OperatorType::Equal => lhs.eq(context, &self.token, rhs), // ==
+                        OperatorType::Different => lhs.ne(context, &self.token, rhs), // !=
+                        OperatorType::Shr => lhs.shr(context, &self.token, rhs), // >>
+                        OperatorType::Shl => lhs.shl(context, &self.token, rhs), // <<
+                        OperatorType::And => lhs.bitwise_and(context, &self.token, rhs), // &
+                        OperatorType::Or => lhs.bitwise_or(context, &self.token, rhs), // |
+                        OperatorType::Xor => lhs.bitwise_xor(context, &self.token, rhs), // ^
+                        OperatorType::Add => lhs.add(context, &self.token, rhs), // +
+                        OperatorType::Sub => lhs.sub(context, &self.token, rhs), // -
+                        OperatorType::Mul => lhs.mul(context, &self.token, rhs), // *
+                        OperatorType::Div => lhs.div(context, &self.token, rhs), // /
+                        OperatorType::Rem => lhs.rem(context, &self.token, rhs), // %
+                        OperatorType::Less => lhs.lt(context, &self.token, rhs), // <
+                        OperatorType::More => lhs.gt(context, &self.token, rhs), // >
+                        OperatorType::Assign => { lhs.assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::AddAssign => { lhs.add_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::SubAssign => { lhs.sub_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::MulAssign => { lhs.mul_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::DivAssign => { lhs.div_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::RemAssign => { lhs.rem_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::XorAssign => { lhs.xor_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::AndAssign => { lhs.and_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::OrAssign => { lhs.or_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::ShrAssign => { lhs.shr_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        OperatorType::ShlAssign => { lhs.shl_assign(context, &self.token, rhs)?; Ok(lhs) },
+                        _ => unreachable!(),
+                    }
                 }
             }
             ExprType::Call(ref name, ref args) => {
