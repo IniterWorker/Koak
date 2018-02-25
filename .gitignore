@@ -17,3 +17,4 @@ koak.iml
 *.pyc
 *.o
 a.out
+**/test.ks

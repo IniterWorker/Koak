@@ -10,6 +10,7 @@ use iron_llvm::core::basic_block::BasicBlock;
 use parser::Parser;
 use lexer::{Token, TokenType, OperatorType};
 use lang::block::{Block, parse_block};
+use lang::types::KoakType;
 use error::{SyntaxError, ErrorReason};
 use codegen::{IRContext, IRModuleProvider, IRExprGenerator, IRExprResult};
 
@@ -71,14 +72,19 @@ impl IRExprGenerator for LetAssign {
 
         let mut val = val?;
 
-        let current_block = context.builder.get_insert_block();
-        let func = current_block.get_parent();
-        val.is_mut = self.is_mut;
-        if context.toplevel {
-            Err(SyntaxError::from(&self.token, ErrorReason::TopLevelAssignForbidden))
-        } else {
-            context.create_stack_var(&func, self.name.clone(), val.clone());
-            Ok(val)
+        if val.ty != KoakType::Void {
+            let current_block = context.builder.get_insert_block();
+            let func = current_block.get_parent();
+            val.is_mut = self.is_mut;
+            if context.toplevel {
+                Err(SyntaxError::from(&self.token, ErrorReason::TopLevelAssignForbidden))
+            } else {
+                context.create_stack_var(&func, self.name.clone(), val.clone());
+                Ok(val)
+            }
+        }
+        else {
+            Err(SyntaxError::from(&self.token, ErrorReason::CantAssignVoidValue))
         }
     }
 }
