@@ -25,8 +25,19 @@ lazy_static! {
         (OperatorType::MulAssign, 10),
         (OperatorType::DivAssign, 10),
         (OperatorType::RemAssign, 10),
+        (OperatorType::LogicalAnd, 20),
+        (OperatorType::LogicalOr, 30),
+        (OperatorType::Or, 40),
+        (OperatorType::Xor, 50),
+        (OperatorType::Equal, 70),
+        (OperatorType::And, 60),
+        (OperatorType::Different, 70),
         (OperatorType::Less, 80),
         (OperatorType::More, 80),
+        (OperatorType::LessOrEqual, 80),
+        (OperatorType::MoreOrEqual, 80),
+        (OperatorType::Shl, 90),
+        (OperatorType::Shr, 90),
         (OperatorType::Add, 100),
         (OperatorType::Sub, 100),
         (OperatorType::Mul, 110),
@@ -159,7 +170,9 @@ fn parse_primary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
 fn parse_unary(parser: &mut Parser) -> Result<Expr, SyntaxError> {
     match parser.peek_type() {
         Some(&TokenType::Operator(t @ OperatorType::Add))
-            | Some(&TokenType::Operator(t @ OperatorType::Sub))
+        | Some(&TokenType::Operator(t @ OperatorType::Sub))
+        | Some(&TokenType::Operator(t @ OperatorType::Not))
+        | Some(&TokenType::Operator(t @ OperatorType::Compl))
                 => {
                     let token = parser.tokens.pop().unwrap();
                     Ok(Expr::new(token, ExprType::Unary(t, Box::new(parse_unary(parser)?))))
@@ -189,21 +202,35 @@ impl IRExprGenerator for Expr {
                 let val = expr.gen_ir(context, module_provider)?;
                 match *op {
                     OperatorType::Add => Ok(val),
-                    OperatorType::Sub => val.unary_not(context, &expr.token),
+                    OperatorType::Sub => val.unary_neg(context, &expr.token), // -
+                    OperatorType::Compl => val.unary_compl(context, &expr.token), // ~
+                    OperatorType::Not => val.unary_not(context, &expr.token), // !
                     _ => unimplemented!(),
                 }
             },
             ExprType::Binary(ref op, ref lhs, ref rhs) => {
                 let mut lhs = lhs.gen_ir(context, module_provider)?;
                 let rhs = rhs.gen_ir(context, module_provider)?;
+
                 match *op {
-                    OperatorType::Add => lhs.add(context, &self.token, rhs),
-                    OperatorType::Sub => lhs.sub(context, &self.token, rhs),
-                    OperatorType::Mul => lhs.mul(context, &self.token, rhs),
-                    OperatorType::Div => lhs.div(context, &self.token, rhs),
-                    OperatorType::Rem => lhs.rem(context, &self.token, rhs),
-                    OperatorType::Less => lhs.lt(context, &self.token, rhs),
-                    OperatorType::More => lhs.gt(context, &self.token, rhs),
+                    OperatorType::MoreOrEqual => lhs.ge(context, &self.token, rhs), // >=
+                    OperatorType::LessOrEqual => lhs.le(context, &self.token, rhs), // <=
+                    OperatorType::Equal => lhs.eq(context, &self.token, rhs), // ==
+                    OperatorType::Different => lhs.ne(context, &self.token, rhs), // !=
+                    OperatorType::Shr => lhs.shr(context, &self.token, rhs), // >>
+                    OperatorType::Shl => lhs.shl(context, &self.token, rhs), // <<
+                    OperatorType::And => lhs.bitwise_and(context, &self.token, rhs), // &
+                    OperatorType::Or => lhs.bitwise_or(context, &self.token, rhs), // |
+                    OperatorType::Xor => lhs.bitwise_xor(context, &self.token, rhs), // ^
+                    OperatorType::LogicalAnd => lhs.and(context, &self.token, rhs), // &&
+                    OperatorType::LogicalOr => lhs.or(context, &self.token, rhs), // ||
+                    OperatorType::Add => lhs.add(context, &self.token, rhs), // +
+                    OperatorType::Sub => lhs.sub(context, &self.token, rhs), // -
+                    OperatorType::Mul => lhs.mul(context, &self.token, rhs), // *
+                    OperatorType::Div => lhs.div(context, &self.token, rhs), // /
+                    OperatorType::Rem => lhs.rem(context, &self.token, rhs), // %
+                    OperatorType::Less => lhs.lt(context, &self.token, rhs), // <
+                    OperatorType::More => lhs.gt(context, &self.token, rhs), // >
                     OperatorType::Assign => { lhs.assign(context, &self.token, rhs)?; Ok(lhs) },
                     OperatorType::AddAssign => { lhs.add_assign(context, &self.token, rhs)?; Ok(lhs) },
                     OperatorType::SubAssign => { lhs.sub_assign(context, &self.token, rhs)?; Ok(lhs) },

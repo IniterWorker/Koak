@@ -230,10 +230,12 @@ class CustomTestCase(TestCase):
 
     def assertKoakLastErrorEqual(self, test_error: str):
         self.runKoak()
+        self.stderr_expected(test_error)
         self.assertKoakLastEqual(None, test_error, Stream.STDERR)
 
     def assertKoakLastOutEqual(self, test_out: str):
         self.runKoak()
+        self.stdout_expected(test_out)
         self.assertKoakLastEqual(test_out, None, Stream.STDOUT)
 
     def assertKoakZeroError(self):
@@ -281,14 +283,15 @@ class CustomTestCase(TestCase):
 
         stdout, stderr = p.communicate()
 
-        # Cache
-        self.current_stderr = stderr.decode("ascii")
-        self.current_stdout = stdout.decode("ascii")
+        if self.current_stdout is None or self.current_stdout is None:
+            # Cache
+            self.current_stderr = stderr.decode("ascii")
+            self.current_stdout = stdout.decode("ascii")
 
-        list_out = extract_lines_from_std(self.current_stdout)
-        list_err = extract_lines_from_std(self.current_stderr)
+            self.current_stdout = extract_lines_from_std(self.current_stdout)
+            self.current_stderr = extract_lines_from_std(self.current_stderr)
 
-        return list_out, list_err
+        return self.current_stdout, self.current_stderr
 
     def process_input_list_from_file(self, input_list: list, args=None) -> (list, list):
         """
@@ -306,14 +309,15 @@ class CustomTestCase(TestCase):
 
         stdout, stderr = p.communicate()
 
-        # Cache
-        self.current_stderr = stderr.decode("ascii")
-        self.current_stdout = stdout.decode("ascii")
+        if self.current_stdout is None or self.current_stdout is None:
+            # Cache
+            self.current_stderr = stderr.decode("ascii")
+            self.current_stdout = stdout.decode("ascii")
 
-        list_out = extract_lines_from_std(self.current_stdout)
-        list_err = extract_lines_from_std(self.current_stderr)
+            self.current_stdout = extract_lines_from_std(self.current_stdout)
+            self.current_stderr = extract_lines_from_std(self.current_stderr)
 
-        return list_out, list_err
+        return self.current_stdout, self.current_stderr
 
     def process_input_list(self, input_list: list, args=None) -> (list, list, list, list):
         a, b = self.process_input_list_from_pipe(input_list, args)
@@ -460,4 +464,3 @@ class CustomTestCase(TestCase):
         :return:
         """
         self.assertKoakListContain(None, search, False, case_sensitive, Stream.STDERR)
-

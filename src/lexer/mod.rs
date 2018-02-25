@@ -26,6 +26,8 @@ pub enum OperatorType {
     Or,           // '|'
     And,          // '&'
     Xor,          // '^'
+    Compl,        // '~'
+    Not,          // '!'
 
     Assign,       // '='
     AddAssign,    // '+='

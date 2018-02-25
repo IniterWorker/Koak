@@ -1,7 +1,7 @@
-from unittest import main, TextTestRunner
+from unittest import main, TextTestRunner, skip
 
-from unittestcolor import ColorTextTestResult
 from custom_test_case import CustomTestCase
+from unittestcolor import ColorTextTestResult
 
 
 class JITCustomTestCase(CustomTestCase):
@@ -10,6 +10,15 @@ class JITCustomTestCase(CustomTestCase):
         super().init()
         self.set_list_args(["-t"])
         self.input_type_piped()
+
+    def _to_res(self, obj):
+        if isinstance(obj, bool):
+            return "=> " + ("true" if obj else "false")
+        else:
+            return "=> " + str(obj)
+
+    def def_putchar(self):
+        self.stdin_append("extern putchar(c: char) -> void;")
 
     def tearDown(self):
         super().tearDown()
@@ -155,6 +164,36 @@ class UnaryOperatorTest(JITCustomTestCase):
             "----'a';"
         ])
         self.assertKoakLastOutEqual("=> 'a'\n")
+
+    def test_unary_neg(self):
+        self.stdin_append([
+            "!true;",
+            "!'a';",
+            "!1;",
+            "!0.1;",
+        ])
+        self.stdout_expected([
+            self._to_res(not True),
+            self._to_res(not 'a'),
+            self._to_res(not 1),
+            self._to_res(not 0.1)
+        ])
+        self.assertKoakListEqual()
+
+    def test_unary_compl(self):
+        self.stdin_append([
+            # "~true;",
+            # "~'a';",
+            "~1;",
+        ])
+
+        self.stdout_expected([
+            # self._to_res(~True),
+            # self._to_res(chr(~ord('a'))),
+            self._to_res(~1)
+        ])
+        self.assertKoakListEqual()
+
 
 class AutoCastTests(JITCustomTestCase):
     def test_bool_casts(self):
@@ -331,6 +370,7 @@ class AutoCastTests(JITCustomTestCase):
         ])
         self.assertKoakListEqual()
 
+
 class VoidTests(JITCustomTestCase):
     def test_void_call(self):
         self.stdin_append("extern putchar(c: char) -> void; def f() -> void { putchar('a') } f();")
@@ -389,7 +429,8 @@ class VoidTests(JITCustomTestCase):
             "if 1 < 2 putchar('a') else 2;",
         ])
         self.assertKoakZeroOut()
-        self.assertKoakLastErrorContain('If bodies\'s type doesn\'t match. Got "void" on one side, and "int" on the other side')
+        self.assertKoakLastErrorContain(
+            'If bodies\'s type doesn\'t match. Got "void" on one side, and "int" on the other side')
 
     def test_void_cond(self):
         self.stdin_append([
@@ -413,6 +454,7 @@ class VoidTests(JITCustomTestCase):
         ])
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"bool\"")
+
 
 class ForLoopTests(JITCustomTestCase):
     def test_with_step(self):
@@ -496,6 +538,184 @@ class ForLoopTests(JITCustomTestCase):
         self.assertKoakZeroOut()
         self.assertKoakLastErrorContain("Undefined variable \"y\"")
 
+
+class CmpOperatorTest(JITCustomTestCase):
+
+    def test_equal_integer_integer_zero(self):
+        self.stdin_append([
+            "0==0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_integer_integer_false(self):
+        self.stdin_append([
+            "1==0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_equal_double_integer_zero(self):
+        self.stdin_append([
+            "0.0==0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_integer_double_zero(self):
+        self.stdin_append([
+            "0==0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_double_double_zero(self):
+        self.stdin_append([
+            "0.0==0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_equal_double_double_false(self):
+        self.stdin_append([
+            "0.1==0.11;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_integer_integer_zero(self):
+        self.stdin_append([
+            "0!=0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_integer_integer_false(self):
+        self.stdin_append([
+            "1!=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_diff_double_integer_zero(self):
+        self.stdin_append([
+            "0.0!=0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_integer_double_zero(self):
+        self.stdin_append([
+            "0!=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_double_double_zero(self):
+        self.stdin_append([
+            "0.0!=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_double_double_false(self):
+        self.stdin_append([
+            "0.1!=0.11;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_diff_double_empty(self):
+        self.stdin_append([
+            "0.1!=;"
+        ])
+        self.assertKoakLastErrorContain("An expression was expected")
+
+    def test_diff_with_parenthesis(self):
+        self.stdin_append([
+            "(5 + 10) != (10 + 5);"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_diff_equal_without_parenthesis(self):
+        self.stdin_append([
+            "1 != 2 == 1;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_diff_equal_without_parenthesis_false(self):
+        self.stdin_append([
+            "1.1 != 2.0 == 1.2;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_equal_triple_error(self):
+        self.stdin_append([
+            "1==="
+        ])
+        self.assertKoakLastErrorContain("An expression was expected")
+
+    def test_diff_triple_error(self):
+        self.stdin_append([
+            "1!=="
+        ])
+        self.assertKoakLastErrorContain("An expression was expected")
+
+    def test_leq_integer_integer_zero(self):
+        self.stdin_append([
+            "0<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_leq_integer_integer_false(self):
+        self.stdin_append([
+            "1<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> false\n")
+
+    def test_leq_double_integer_zero(self):
+        self.stdin_append([
+            "0.0<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_leq_integer_double_zero(self):
+        self.stdin_append([
+            "0<=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_leq_double_double_zero(self):
+        self.stdin_append([
+            "0.0<=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_integer_integer_zero(self):
+        self.stdin_append([
+            "0<=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_integer_char_zero(self):
+        self.stdin_append([
+            "0<='a';"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_integer_integer_true(self):
+        self.stdin_append([
+            "1>=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_double_integer_zero(self):
+        self.stdin_append([
+            "0.0>=0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_integer_double_zero(self):
+        self.stdin_append([
+            "0>=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_geq_double_double_zero(self):
+        self.stdin_append([
+            "0.0>=0.0;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+
 class BlockTests(JITCustomTestCase):
     def test_block_return_val_1(self):
         self.stdin_append([
@@ -547,6 +767,7 @@ class BlockTests(JITCustomTestCase):
             "f();",
         ])
         self.assertKoakLastOutEqual("0123456789" * 10 + "\n")
+
 
 class ConditionTests(JITCustomTestCase):
     def test_cond(self):
@@ -632,6 +853,7 @@ class ConditionTests(JITCustomTestCase):
             "if putchar('a') putcln('a') else putcln('b');"
         ])
         self.assertKoakLastErrorContain("Can't cast type \"void\" to type \"bool\"")
+
 
 class VariableTests(JITCustomTestCase):
     def test_basic_assign(self):
@@ -739,6 +961,225 @@ class SeeminglyRandomButTheyArentTests(JITCustomTestCase):
             "=> 10",
         ])
         self.assertKoakListEqual()
+
+    def test_eq_void(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "putchar('0')==putchar('0');"
+        ])
+        self.assertKoakLastErrorContain("Invalid binary operator for type")
+
+    def test_le_void(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "putchar('0')<=putchar('0');"
+        ])
+        self.assertKoakLastErrorContain("Invalid binary operator for type")
+
+    def test_ge_void(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "putchar('0')>=putchar('0');"
+        ])
+        self.assertKoakLastErrorContain("Invalid binary operator for type")
+
+    def test_ne_void(self):
+        self.stdin_append([
+            "extern putchar(c: char) -> void;",
+            "putchar('0')!=putchar('0');"
+        ])
+        self.assertKoakLastErrorContain("Invalid binary operator for type")
+
+    def test_eq_bool(self):
+        self.stdin_append([
+            "true==true;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_le_bool(self):
+        self.stdin_append([
+            "true<=true;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_ge_bool(self):
+        self.stdin_append([
+            "true>=false;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+    def test_ne_bool(self):
+        self.stdin_append([
+            "true!=false;"
+        ])
+        self.assertKoakLastOutEqual("=> true\n")
+
+
+class ShiftOperatorTest(JITCustomTestCase):
+
+    def _bool_to_str(self, b: bool) -> str:
+        return "=> true" if b else "=> false"
+
+    def test_bitshift_int_shl(self):
+        self.stdin_append([
+            "3 << 3;",
+            "4 << 3;",
+            "6 << 3;",
+        ])
+        self.stdout_expected([
+            self._to_res(3 << 3),
+            self._to_res(4 << 3),
+            self._to_res(6 << 3),
+        ])
+        self.assertKoakListEqual()
+
+    def test_bitshift_int_shr(self):
+        self.stdin_append([
+            "3 >> 3;",
+            "4 >> 3;",
+            "6 >> 3;",
+        ])
+        self.stdout_expected([
+            self._to_res(3 >> 3),
+            self._to_res(4 >> 3),
+            self._to_res(6 >> 3),
+        ])
+        self.assertKoakListEqual()
+
+    def test_bitshift_double_shl(self):
+        self.stdin_append([
+            "3.0 << 3.0;",
+            "4.0 << 3.0;",
+            "6.0 << 3.0;",
+        ])
+        self.assertKoakListEqual()
+
+    def test_bitshift_double_shr(self):
+        self.stdin_append([
+            "3.0 >> 3.0;",
+            "4.0 >> 3.0;",
+            "6.0 >> 3.0;",
+        ])
+        self.assertKoakNeedError()
+
+    def test_bitshift_bool_shl(self):
+        self.stdin_append([
+            ## "true << true;",
+            ## "false << true;",
+            ## "true << false;",
+            "false << false;",
+        ])
+        self.stdout_expected([
+            ##self._bool_to_str(True << True),
+            ##self._bool_to_str(False << True),
+            ##self._bool_to_str(True << False),
+            self._bool_to_str(False << False),
+        ])
+        self.assertKoakListEqual()
+
+    def test_bitshift_bool_shr(self):
+        self.stdin_append([
+            ## "true >> true;",
+            ## "false >> true;",
+            "true >> false;",
+            "false >> false;",
+        ])
+        self.stdout_expected([
+            ## self._bool_to_str(True >> True),
+            ## self._bool_to_str(False >> True),
+            self._bool_to_str(True >> False),
+            self._bool_to_str(False >> False),
+        ])
+        self.assertKoakListEqual()
+
+
+class BitwiseOperatorTest(JITCustomTestCase):
+
+    def test_bitwise_xor(self):
+        self.stdin_append([
+            "3 ^ 3;",
+            "4 ^ 3;",
+            "6 ^ 3;",
+        ])
+        self.stdout_expected([
+            self._to_res(3 ^ 3),
+            self._to_res(4 ^ 3),
+            self._to_res(6 ^ 3),
+        ])
+        self.assertKoakListEqual()
+
+    def test_bitwise_and(self):
+        self.stdin_append([
+            "1 & 2;",
+            "1 & 3;",
+            "6 & 3;",
+        ])
+        self.stdout_expected([
+            self._to_res(1 & 2),
+            self._to_res(1 & 3),
+            self._to_res(6 & 3),
+        ])
+        self.assertKoakListEqual()
+
+    def test_bitwise_or(self):
+        self.stdin_append([
+            "3 | 3;",
+            "4 | 3;",
+            "6 | 3;",
+        ])
+        self.stdout_expected([
+            self._to_res(3 | 3),
+            self._to_res(4 | 3),
+            self._to_res(6 | 3),
+        ])
+        self.assertKoakListEqual()
+
+    def test_bitwise_or_err_double(self):
+        self.stdin_append(["3.0 | 3;"])
+        self.assertKoakNeedError()
+
+    def test_bitwise_or_err_void(self):
+        self.def_putchar()
+        self.stdin_append([
+            "putchar('e') | 3;"
+        ])
+        self.assertKoakNeedError()
+
+    def test_bitwise_and_err_double(self):
+        self.stdin_append(["3.0 & 3;"])
+        self.assertKoakNeedError()
+
+    def test_bitwise_and_err_void(self):
+        self.def_putchar()
+        self.stdin_append([
+            "putchar('e') & 3;"
+        ])
+        self.assertKoakNeedError()
+
+    def test_bitwise_xor_err_double(self):
+        self.stdin_append(["3.0 ^ 3;"])
+        self.assertKoakNeedError()
+
+    def test_bitwise_xor_err_void(self):
+        self.def_putchar()
+        self.stdin_append([
+            "putchar('e') ^ 3;"
+        ])
+        self.assertKoakNeedError()
+
+    def test_neg_err_void(self):
+        self.def_putchar()
+        self.stdin_append([
+            "!putchar('e')"
+        ])
+        self.assertKoakNeedError()
+
+    def test_not_err_void(self):
+        self.def_putchar()
+        self.stdin_append([
+            "!putchar('e')"
+        ])
+        self.assertKoakNeedError()
 
 
 if __name__ == "__main__":
