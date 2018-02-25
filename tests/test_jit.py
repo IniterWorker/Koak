@@ -1075,7 +1075,6 @@ class ShiftOperatorTest(JITCustomTestCase):
             "true << false;",
             "false << false;",
         ])
-
         self.assertKoakNeedError()
 
     def test_bitshift_bool_shr(self):
@@ -1085,7 +1084,6 @@ class ShiftOperatorTest(JITCustomTestCase):
             "true >> false;",
             "false >> false;",
         ])
-
         self.assertKoakNeedError()
 
 
@@ -1176,6 +1174,87 @@ class BitwiseOperatorTest(JITCustomTestCase):
             "!putchar('e')"
         ])
         self.assertKoakNeedError()
+
+
+class LogicalOperatorTest(JITCustomTestCase):
+
+    def test_logical_and(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def test0() -> int { putcln('0'); 0 }"
+            "def test1() -> int { putcln('1'); 1 }"
+            "test0() && test0();"
+            "test0() && test1();"
+            "test1() && test0();"
+            "test1() && test1();"
+        ])
+        self.stdout_expected([
+            "=> false",
+            "=> false",
+            "=> false",
+            "=> true",
+            "0",
+            "0",
+            "1",
+            "0",
+            "1",
+            "1",
+        ])
+        self.assertKoakListEqual()
+
+    def test_logical_or(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def test0() -> int { putcln('0'); 0 }"
+            "def test1() -> int { putcln('1'); 1 }"
+            "test0() || test0();"
+            "test0() || test1();"
+            "test1() || test0();"
+            "test1() || test1();"
+        ])
+        self.stdout_expected([
+            "=> false",
+            "=> true",
+            "=> true",
+            "=> true",
+            "0",
+            "0",
+            "0",
+            "1",
+            "1",
+            "1",
+        ])
+        self.assertKoakListEqual()
+
+    def test_logical_mix(self):
+        self.stdin_append([
+            'import "../examples/std";'
+            "def test0() -> int { putcln('0'); 0 }"
+            "def test1() -> int { putcln('1'); 1 }"
+            "(test0() || test0()) && test1();"
+            "test0() || test1() || test0();"
+            "test1() || (test0() && test1());"
+            "(test1() || test0()) && test0();"
+            "test1() || test0() || test1() && test1();"
+        ])
+        self.stdout_expected([
+            "=> false",
+            "=> true",
+            "=> true",
+            "=> false",
+            "=> true",
+            "0",
+            "0",
+            "0",
+            "1",
+            "1",
+            "1",
+            "0",
+            "1",
+            "1",
+        ])
+        self.assertKoakListEqual()
+
 
 
 if __name__ == "__main__":

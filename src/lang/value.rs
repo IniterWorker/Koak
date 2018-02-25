@@ -1,18 +1,24 @@
 //!
 //! Koak's values
 //!
-
-use codegen::{IRContext, IRExprResult};
-use error::{ErrorReason, SyntaxError};
-use iron_llvm::core::types::{IntTypeCtor, IntTypeRef, RealTypeCtor, RealTypeRef};
-use iron_llvm::core::value::{IntConstCtor, IntConstRef, RealConstCtor, RealConstRef};
-use iron_llvm::LLVMRef;
-use lang::types::{calculate_common, KoakType, KoakTypeKind};
-use lexer::Token;
-use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
-use llvm_sys::prelude::LLVMValueRef;
+//!
 use std::ptr;
 use std::rc::Rc;
+
+use llvm_sys::{LLVMIntPredicate, LLVMRealPredicate};
+use llvm_sys::prelude::LLVMValueRef;
+
+use iron_llvm::{LLVMRef, LLVMRefCtor};
+use iron_llvm::core::types::{IntTypeCtor, IntTypeRef, RealTypeCtor, RealTypeRef};
+use iron_llvm::core::value::{Function, IntConstCtor, IntConstRef, RealConstCtor, RealConstRef};
+use iron_llvm::core::instruction::{PHINode, PHINodeRef};
+use iron_llvm::core::basic_block::*;
+
+use codegen::{IRContext, IRExprResult, IRModuleProvider, IRExprGenerator};
+use error::{ErrorReason, SyntaxError};
+use lang::types::{calculate_common, KoakType, KoakTypeKind};
+use lang::expr::Expr;
+use lexer::Token;
 
 #[derive(Debug, Clone)]
 pub struct KoakValue {
@@ -296,20 +302,82 @@ impl KoakValue {
         }
     }
 
-    pub fn and(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
-        let (new_ty, _lhs_ref, _rhs_ref) = binop!(context, self, &rhs, token)?;
-        let new_val = match new_ty.get_kind() {
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
-        }?;
-        Ok(KoakValue::new(new_val, KoakType::Bool))
+    pub fn logical_and(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider, token: &Token, rhs: &Expr) -> IRExprResult {
+        let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();
+
+        // Cast ourselves to bool and compare it to zero
+        let cond_bool = self.cast_to(token, context, KoakType::Bool)?;
+        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, cond_bool.llvm_ref, zero, "and_condtmp");
+
+        // Generate blocks
+        let lhs_block = context.builder.get_insert_block();
+        let mut function = lhs_block.get_parent();
+        let mut rhs_block = function.append_basic_block_in_context(&mut context.context, "and_rhs");
+        let mut merge_block = function.append_basic_block_in_context(&mut context.context, "and_merge");
+
+        // Build conditional bridge
+        context.builder.build_cond_br(cond_res, &rhs_block, &merge_block);
+        let lhs_end = context.builder.get_insert_block();
+
+        // Generate RHS, cast it to bool and compare it to zero
+        context.builder.position_at_end(&mut rhs_block);
+        let rhs_val = rhs.gen_ir(context, module_provider)?;
+        let rhs_bool = rhs_val.cast_to(token, context, KoakType::Bool)?;
+        let rhs_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, rhs_bool.llvm_ref, zero, "and_rhs_condtmp");
+
+        // Bridge rhs to merge
+        context.builder.build_br(&merge_block);
+        let rhs_end = context.builder.get_insert_block();
+
+        // Generate PHI node that holds return value
+        context.builder.position_at_end(&mut merge_block);
+        let mut phi = unsafe {
+            PHINodeRef::from_ref(context.builder.build_phi(KoakType::Bool.as_llvm_ref(), "and_phi"))
+        };
+        phi.add_incoming(
+            vec![cond_res, rhs_res].as_mut_slice(),
+            vec![lhs_end, rhs_end].as_mut_slice(),
+        );
+        Ok(KoakValue::new(phi.to_ref(), KoakType::Bool))
     }
 
-    pub fn or(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
-        let (new_ty, _lhs_ref, _rhs_ref) = binop!(context, self, &rhs, token)?;
-        let new_val = match new_ty.get_kind() {
-            _ => Err(SyntaxError::from(token, ErrorReason::IncompatibleBinOp(self.ty, rhs.ty)))
-        }?;
-        Ok(KoakValue::new(new_val, KoakType::Bool))
+    pub fn logical_or(&self, context: &mut IRContext, module_provider: &mut IRModuleProvider, token: &Token, rhs: &Expr) -> IRExprResult {
+        let zero = IntConstRef::get(&IntTypeRef::get_int1(), 0, true).to_ref();
+
+        // Cast ourselves to bool and compare it to zero
+        let cond_bool = self.cast_to(token, context, KoakType::Bool)?;
+        let cond_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, cond_bool.llvm_ref, zero, "and_condtmp");
+
+        // Generate blocks
+        let lhs_block = context.builder.get_insert_block();
+        let mut function = lhs_block.get_parent();
+        let mut rhs_block = function.append_basic_block_in_context(&mut context.context, "and_rhs");
+        let mut merge_block = function.append_basic_block_in_context(&mut context.context, "and_merge");
+
+        // Build conditional bridge
+        context.builder.build_cond_br(cond_res, &merge_block, &rhs_block);
+        let lhs_end = context.builder.get_insert_block();
+
+        // Generate RHS, cast it to bool and compare it to zero
+        context.builder.position_at_end(&mut rhs_block);
+        let rhs_val = rhs.gen_ir(context, module_provider)?;
+        let rhs_bool = rhs_val.cast_to(token, context, KoakType::Bool)?;
+        let rhs_res = context.builder.build_icmp(LLVMIntPredicate::LLVMIntNE, rhs_bool.llvm_ref, zero, "and_rhs_condtmp");
+
+        // Bridge rhs to merge
+        context.builder.build_br(&merge_block);
+        let rhs_end = context.builder.get_insert_block();
+
+        // Generate PHI node that holds return value
+        context.builder.position_at_end(&mut merge_block);
+        let mut phi = unsafe {
+            PHINodeRef::from_ref(context.builder.build_phi(KoakType::Bool.as_llvm_ref(), "and_phi"))
+        };
+        phi.add_incoming(
+            vec![cond_res, rhs_res].as_mut_slice(),
+            vec![lhs_end, rhs_end].as_mut_slice(),
+        );
+        Ok(KoakValue::new(phi.to_ref(), KoakType::Bool))
     }
 
     pub fn bitwise_or(&self, context: &mut IRContext, token: &Token, rhs: KoakValue) -> IRExprResult {
